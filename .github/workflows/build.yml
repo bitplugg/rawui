@@ -1,0 +1,52 @@
+name: build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  IMAGE: rawui-build:ci
+
+jobs:
+  pkg:
+    name: Build FPKG
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build toolchain image
+        uses: docker/build-push-action@v6
+        with:
+          context: tools
+          file: tools/Dockerfile
+          tags: ${{ env.IMAGE }}
+          load: true
+          cache-from: type=gha,scope=rawui-toolchain
+          cache-to: type=gha,scope=rawui-toolchain,mode=max
+
+      - name: Compile package
+        run: |
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -u "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -w /workspace \
+            "$IMAGE" \
+            bash tools/build.sh
+
+      - name: Show artefacts
+        run: ls -lh dist/
+
+      - name: Upload .pkg
+        uses: actions/upload-artifact@v4
+        with:
+          name: RAWUI0001-pkg
+          path: dist/*.pkg
+          if-no-files-found: error
+          retention-days: 30
