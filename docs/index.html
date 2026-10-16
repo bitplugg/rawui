@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAW UI - PS4 Homebrew</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+      sans-serif; margin: 0; padding: 20px; background: #0f0f0f; color: #ffffff; line-height: 1.6; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { color: #4f9deb; text-align: center; }
+    .card { background: #1a1a1a; border-radius: 8px; padding: 20px; margin: 20px 0; border: 1px solid #333; }
+    .download-btn { display: inline-block; background: #2d9cdb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px 5px; transition: background 0.3s; }
+    .download-btn:hover { background: #1a7fb8; }
+    .gh-btn { display: inline-block; background: #333; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px 5px; transition: background 0.3s; }
+    .gh-btn:hover { background: #555; }
+    code { background: #333; padding: 2px 6px; border-radius: 3px; font-family: 'Courier New', monospace; }
+    footer { text-align: center; margin-top: 40px; color: #888; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>RAW UI</h1>
+    <p style="text-align: center;">Material Design 3 Expressive UI shell for PS4 (GoldHEN) - Firmware 13.52</p>
+    
+    <div class="card">
+      <h2>📦 Download</h2>
+      <p>Latest build is automatically published from GitHub Actions.</p>
+      <div style="text-align: center;">
+        <a href="https://github.com/bitplugg/rawui/releases/latest/download/RAWUI0001.pkg" class="download-btn" id="pkg-btn">Download RAWUI0001.pkg</a>
+        <a href="https://github.com/bitplugg/rawui/releases/latest" class="gh-btn">View Latest Release</a>
+      </div>
+      <p><small>Or grab artifacts from <a href="https://github.com/bitplugg/rawui/actions" style="color: #4f9deb;">GitHub Actions</a>.</small></p>
+    </div>
+
+    <div class="card">
+      <h2>🎮 Installation</h2>
+      <ol>
+        <li>Download the <code>RAWUI0001.pkg</code> file above</li>
+        <li>Copy it to your PS4 via USB, FTP, or network</li>
+        <li>Install using Package Installer (GoldHEN required for homebrew)</li>
+        <li>Launch RAW UI from your homebrew launcher</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>🔧 Install via GoldHEN (LAN)</h2>
+      <p>With GoldHEN's web server running, open this page from your PS4 browser or use the direct link below.</p>
+      <p>Host this page on your local server and navigate to <code>http://YOUR-PC-IP/</code> on your PS4.</p>
+    </div>
+
+    <div class="card">
+      <h2>📱 Controls</h2>
+      <ul>
+        <li><strong>DPAD/Left Stick</strong> - Navigate</li>
+        <li><strong>Cross (X)</strong> - Confirm/Select</li>
+        <li><strong>Circle (O)</strong> - Back/Cancel</li>
+        <li><strong>Square (□)</strong> - Secondary action</li>
+        <li><strong>Triangle (△)</strong> - Floating action button</li>
+        <li><strong>L1/R1</strong> - Switch between screens</li>
+        <li><strong>Options</strong> - Toggle dark/light theme</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>⚡ Features</h2>
+      <ul>
+        <li>Material Design 3 Expressive UI</li>
+        <li>PKG Installer with progress tracking</li>
+        <li>File Manager (mount points: /data, /mnt, /usb, /user)</li>
+        <li>GoldHEN status detection</li>
+        <li>Cheats/Patches browser</li>
+        <li>Settings with theme customization</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    <p>Built with ❤️ for the PS4 homebrew community</p>
+    <p><a href="https://github.com/bitplugg/rawui" style="color: #4f9deb;">View on GitHub</a></p>
+  </footer>
+
+  <script>
+    // Auto-update PKG link from latest release API
+    fetch('https://api.github.com/repos/bitplugg/rawui/releases/latest')
+      .then(r => r.json())
+      .then(data => {
+        const pkgAsset = data.assets.find(a => a.name.endsWith('.pkg'));
+        if (pkgAsset) {
+          document.getElementById('pkg-btn').href = pkgAsset.browser_download_url;
+        }
+      })
+      .catch(() => {});
+  </script>
+</body>
+</html>
