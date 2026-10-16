@@ -57,5 +57,5 @@ RUN mkdir -p /tmp/ossl && cd /tmp/ossl && \
     ldconfig 2>/dev/null || true && \
     rm -rf /tmp/ossl
 
-ENV LD_LIBRARY_PATH=/var/tmp/.net/PkgTool.Core/*:/usr/local/ssl1.1/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=/var/tmp/.net/PkgTool.Core/*:/usr/local/ssl1.1/lib:/usr/lib/x86_64-linux-gnu
 
