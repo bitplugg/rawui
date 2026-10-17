@@ -72,7 +72,7 @@ export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := 1
 CFLAGS      := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -c \
                $(EXTRAFLAGS) -isysroot $(TOOLCHAIN) \
                -isystem $(TOOLCHAIN)/include -I$(SRCDIR)
-CXXFLAGS    := $(CFLAGS) -isystem $(TOOLCHAIN)/include/c++/v1 -I$(TOOLCHAIN)/include/c++/v1 -I$(TOOLCHAIN)/include
+CXXFLAGS    := $(CFLAGS) -nostdinc++ -I$(TOOLCHAIN)/include/c++/v1 -I$(TOOLCHAIN)/include -I$(TOOLCHAIN)/include/sys -isystem $(TOOLCHAIN)/include/c++/v1
 LDFLAGS     := -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr \
                -L$(TOOLCHAIN)/lib $(LIBS) $(TOOLCHAIN)/lib/crt1.o
 
