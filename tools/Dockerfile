@@ -1,13 +1,8 @@
 # ============================================================================
 #  Reproducible build environment for RAW UI.
-#
 #  Ubuntu 24.04 + LLVM 18 (the toolchain release is built against LLVM 18) plus
 #  the OpenOrbis PS4 toolchain itself, so that a plain `make` inside the
 #  container produces the same .pkg that CI produces.
-#
-#  Build:  docker build -t rawui-build tools/
-#  Use:    docker run --rm -v "$PWD:/workspace" -u "$(id -u):$(id -g)" \
-#                     -e HOME=/tmp rawui-build
 # ============================================================================
 FROM ubuntu:24.04
 
@@ -28,7 +23,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # ---------------------------------------------------------------------------
 #  OpenOrbis PS4 Toolchain (headers, stub libs, create-fself / PkgTool.Core).
-#  The release tarball unpacks to OpenOrbis/PS4Toolchain/, we flatten it.
 # ---------------------------------------------------------------------------
 RUN mkdir -p /opt/toolchain-dl /opt/OpenOrbis \
     && curl -fsSL -o /opt/toolchain-dl/${OO_ASSET} \
@@ -39,9 +33,10 @@ RUN mkdir -p /opt/toolchain-dl /opt/OpenOrbis \
 
 ENV OO_PS4_TOOLCHAIN=/opt/OpenOrbis
 ENV PATH=/opt/OpenOrbis/bin/linux:$PATH
+ENV LANG=C.UTF-8
+
 # ---------------------------------------------------------------------------
-#  Build OpenSSL 1.1.1w for PkgTool.Core (.NET Core 3.1) compatibility
-#  Ubuntu 24.04 ships OpenSSL 3.0; PkgTool.Core needs libssl1.1.
+#  Build OpenSSL 1.1.1w for PkgTool.Core compatibility
 # ---------------------------------------------------------------------------
 RUN mkdir -p /tmp/ossl && cd /tmp/ossl && \
     curl -fsSL -o openssl.tar.gz https://github.com/openssl/openssl/releases/download/OpenSSL_1_1_1w/openssl-1.1.1w.tar.gz && \
@@ -59,3 +54,5 @@ RUN mkdir -p /tmp/ossl && cd /tmp/ossl && \
 
 ENV LD_LIBRARY_PATH=/var/tmp/.net/PkgTool.Core/*:/usr/local/ssl1.1/lib:/usr/lib/x86_64-linux-gnu
 
+WORKDIR /workspace
+CMD ["bash", "tools/build.sh"]
