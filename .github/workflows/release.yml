@@ -1,0 +1,95 @@
+name: release
+
+# Push a tag like v1.0.0 → build the FPKG with that version baked into
+# param.sfo, generate a changelog from commits/PRs since the previous tag,
+# and publish a GitHub Release with the .pkg + SHA256 checksum.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  meta:
+    name: Derive version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - id: ver
+        run: |
+          # v1.2.3 → 1.2 (PS4 param.sfo VERSION is MAJOR.MINOR)
+          TAG="${GITHUB_REF_NAME}"
+          MAJOR="${TAG#v}"; MAJOR="${MAJOR%%.*}"
+          MINOR="$(echo "${TAG#v}" | cut -d. -f2)"
+          echo "version=${MAJOR}.${MINOR:-00}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build FPKG
+    needs: meta
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ needs.meta.outputs.version }}
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so the changelog covers old commits
+
+      - name: Download .pkg
+        uses: actions/download-artifact@v4
+        with:
+          name: RAWUI0001-pkg
+          path: dist
+
+      - name: Checksum
+        run: |
+          cd dist
+          sha256sum *.pkg > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Generate changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # GitHub's own notes generator: lists PRs and commits since the
+          # previous release; falls back to everything if there is none.
+          NOTES="$(gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+                     -F tag_name="${GITHUB_REF_NAME}" \
+                     -F target_commitish="${GITHUB_SHA}" --jq .body)" || NOTES=""
+
+          PKG="dist/RAWUI0001-${GITHUB_REF_NAME}.pkg"
+          cp "dist/"*.pkg "$PKG"
+
+          cat > notes.md <<EOF
+          ## Установка
+          Скопируй \`${PKG##*/}\` на USB-флешку и установи через
+          **Settings → Debug Settings → Game → Package Installer** (нужен GoldHEN).
+
+          ## Что нового
+          ${NOTES:-См. коммиты: https://github.com/${GITHUB_REPOSITORY}/commits/${GITHUB_REF_NAME}}
+
+          ## Проверка целостности
+          \`\`\`
+          $(cat dist/SHA256SUMS.txt)
+          \`\`\`
+          EOF
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "RAW UI ${{ needs.meta.outputs.version }}" \
+            --notes-file notes.md \
+            --verify-tag \
+            "dist/RAWUI0001-${GITHUB_REF_NAME}.pkg" \
+            dist/SHA256SUMS.txt
