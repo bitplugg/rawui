@@ -7,38 +7,55 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE: rawui-build:ci
+  OO_VERSION: v0.5.4
+  OO_ASSET: toolchain-llvm-18.tar.gz
 
 jobs:
   pkg:
     name: Build FPKG
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Install compilers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang-18 lld-18 llvm-18 make curl ca-certificates file
+          sudo ln -sf /usr/bin/clang-18   /usr/local/bin/clang
+          sudo ln -sf /usr/bin/clang++-18 /usr/local/bin/clang++
+          sudo ln -sf /usr/bin/ld.lld-18  /usr/local/bin/ld.lld
 
-      - name: Build toolchain image
-        uses: docker/build-push-action@v6
+      - name: Cache OpenOrbis toolchain
+        id: cache-tc
+        uses: actions/cache@v4
         with:
-          context: tools
-          file: tools/Dockerfile
-          tags: ${{ env.IMAGE }}
-          load: true
-          cache-from: type=gha,scope=rawui-toolchain
-          cache-to: type=gha,scope=rawui-toolchain,mode=max
+          path: ~/oo/OpenOrbis
+          key: oo-${{ env.OO_VERSION }}-${{ env.OO_ASSET }}
+
+      - name: Fetch OpenOrbis toolchain
+        if: steps.cache-tc.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/oo/dl
+          curl -fsSL --retry 3 -o ~/oo/dl/${OO_ASSET} \
+            "https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain/releases/download/${OO_VERSION}/${OO_ASSET}"
+          tar -xzf ~/oo/dl/${OO_ASSET} -C ~/oo/dl
+          mkdir -p ~/oo/OpenOrbis
+          mv ~/oo/dl/OpenOrbis/PS4Toolchain ~/oo/OpenOrbis/PS4Toolchain
+
+      - name: Fetch OpenSSL 1.1 runtime (for PkgTool.Core)
+        run: |
+          mkdir -p ~/ssl11
+          curl -fsSL --retry 3 -o /tmp/libssl1.1.deb \
+            "http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb"
+          dpkg-deb -x /tmp/libssl1.1.deb ~/ssl11
 
       - name: Compile package
-        run: |
-          docker run --rm \
-            -v "$PWD:/workspace" \
-            -u "$(id -u):$(id -g)" \
-            -e HOME=/tmp \
-            -w /workspace \
-            "$IMAGE" \
-            bash tools/build.sh
+        env:
+          OO_PS4_TOOLCHAIN: /home/runner/oo/OpenOrbis/PS4Toolchain
+          LD_LIBRARY_PATH: /home/runner/ssl11/usr/lib/x86_64-linux-gnu
+        run: bash tools/build.sh
 
       - name: Show artefacts
         run: ls -lh dist/

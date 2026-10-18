@@ -81,7 +81,14 @@ endif
 CFLAGS      := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -c \
                $(EXTRAFLAGS) -isysroot $(TOOLCHAIN) \
                -isystem $(TOOLCHAIN)/include -I$(SRCDIR)
-CXXFLAGS    := $(CFLAGS) -nostdinc++ -I$(LIBCPP_V1) -isystem $(LIBCPP_V1)
+# The trailing -isystem $(TOOLCHAIN)/include is deliberate: libc++'s stdint.h
+# uses `#include_next <stdint.h>`, which only searches directories *after* the
+# one the current file lives in. On some clang versions the builtin resource
+# dir (which forwards to the host glibc headers) comes next and the build dies
+# on 'bits/libc-header-start.h'; repeating the toolchain include after the
+# libc++ dirs makes include_next resolve to the toolchain's musl stdint.h.
+CXXFLAGS    := $(CFLAGS) -nostdinc++ -I$(LIBCPP_V1) -isystem $(LIBCPP_V1) \
+               -isystem $(TOOLCHAIN)/include
 LDFLAGS     := -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr \
                -L$(TOOLCHAIN)/lib $(LIBS) $(TOOLCHAIN)/lib/crt1.o
 
