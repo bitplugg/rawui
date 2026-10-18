@@ -31,6 +31,7 @@ jobs:
     outputs:
       version: ${{ steps.ver.outputs.version }}   # MAJOR.MINOR for param.sfo
       tag: ${{ steps.ver.outputs.tag }}           # vX.Y.Z for the release
+      title: ${{ steps.ver.outputs.title }}       # X.Y.Z for the release title
     steps:
       - id: ver
         env:
@@ -60,6 +61,7 @@ jobs:
             fi
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "title=${TAG#v}" >> "$GITHUB_OUTPUT"
           # PS4 param.sfo VERSION is MAJOR.MINOR
           T="${TAG#v}"
           echo "version=${T%%.*}.$(echo "$T" | cut -d. -f2)" >> "$GITHUB_OUTPUT"
@@ -89,9 +91,13 @@ jobs:
           path: dist
 
       - name: Checksum
+        env:
+          TAG: ${{ needs.meta.outputs.tag }}
         run: |
           cd dist
-          sha256sum *.pkg > SHA256SUMS.txt
+          # rename to the asset name the release will carry, then checksum it
+          cp IV0000-*.pkg "RAWUI0001-${TAG}.pkg"
+          sha256sum "RAWUI0001-${TAG}.pkg" > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Generate changelog
@@ -105,12 +111,9 @@ jobs:
                      -F tag_name="${TAG}" \
                      -F target_commitish="${GITHUB_SHA}" --jq .body)" || NOTES=""
 
-          PKG="dist/RAWUI0001-${TAG}.pkg"
-          cp "dist/"*.pkg "$PKG"
-
           cat > notes.md <<EOF
           ## Установка
-          Скопируй \`${PKG##*/}\` на USB-флешку и установи через
+          Скопируй \`RAWUI0001-${TAG}.pkg\` на USB-флешку и установи через
           **Settings → Debug Settings → Game → Package Installer** (нужен GoldHEN).
 
           ## Что нового
@@ -132,7 +135,7 @@ jobs:
           gh release create "$TAG" \
             --repo "${GITHUB_REPOSITORY}" \
             --target "$GITHUB_SHA" \
-            --title "RAW UI ${{ needs.meta.outputs.version }}" \
+            --title "RAW UI ${{ needs.meta.outputs.title }}" \
             --notes-file notes.md \
             "dist/RAWUI0001-${TAG}.pkg" \
             dist/SHA256SUMS.txt
