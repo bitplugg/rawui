@@ -261,7 +261,10 @@ std::string joinPath(const std::string& a, const std::string& b) {
 uint32_t iconForPath(const std::string& path, bool isDir) {
     if (isDir) return icons::kFolder;
 
-    const std::string ext = fileExtension(path);
+    std::string ext = fileExtension(path);
+    // Ensure lowercase for case-insensitive extension checks
+    std::transform(ext.begin(), ext.end(), ext.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
     if (ext == "pkg") return icons::kPackage;
     if (ext == "json") return icons::kDataObject;

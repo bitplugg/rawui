@@ -106,7 +106,9 @@ HenStatus probeHen() {
         status.servers.push_back(copy);
     }
 
-    status.running = status.portCount > 0;
+    // Consider GoldHEN running if payload dir exists and we can detect it
+    // Fallback: don't strictly require version.txt or all ports to be up
+    status.running = status.payloadDirPresent;
 
     const std::vector<std::string> cheatDirs = cheatDirectories();
     status.cheatDir = cheatDirs.empty() ? "/data/GoldHEN/cheats/json" : cheatDirs.front();

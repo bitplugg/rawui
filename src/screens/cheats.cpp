@@ -127,7 +127,7 @@ void CheatsScreen::draw(App& app) {
     if (entries_.empty()) {
         ui::drawText(ctx,
                      mode_ == kCheats ? "No cheat JSON files found in GoldHEN/cheats"
-                                      : "No patch files found in GoldHEN/pacts",
+                                      : "No patch files found in GoldHEN/patches",
                      ctx.type().bodyLarge, Rect(rows.x, rows.y + 30.0f * s, rows.w, 50.0f * s),
                      c.onSurfaceVariant, ui::Align::Left, ui::VAlign::Middle);
         if (!sources_.empty()) {
