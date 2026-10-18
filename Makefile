@@ -69,10 +69,19 @@ TOOLBIN     := $(TOOLCHAIN)/bin/$(CDIR)
 # ship a matching ICU package ("Couldn't find a valid ICU package").
 export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := 1
 
+# Detect libc++ v1 include directory (handles layout differences)
+LIBCPP_V1   := $(TOOLCHAIN)/include/c++/v1
+ifeq ($(wildcard $(LIBCPP_V1)/cstdint),)
+  _CSTDINT := $(shell find $(TOOLCHAIN) -name cstdint 2>/dev/null | head -n 1)
+  ifneq ($(_CSTDINT),)
+    LIBCPP_V1 := $(dir $(_CSTDINT))
+  endif
+endif
+
 CFLAGS      := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -c \
                $(EXTRAFLAGS) -isysroot $(TOOLCHAIN) \
                -isystem $(TOOLCHAIN)/include -I$(SRCDIR)
-CXXFLAGS    := $(CFLAGS) -I$(TOOLCHAIN)/include/c++/v1 -isystem $(TOOLCHAIN)/include/c++/v1
+CXXFLAGS    := $(CFLAGS) -I$(LIBCPP_V1) -isystem $(LIBCPP_V1)
 LDFLAGS     := -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr \
                -L$(TOOLCHAIN)/lib $(LIBS) $(TOOLCHAIN)/lib/crt1.o
 
