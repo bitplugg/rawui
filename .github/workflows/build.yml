@@ -56,7 +56,17 @@ jobs:
           mkdir -p ~/ssl11
           curl -fsSL --retry 3 -o /tmp/libssl1.1.deb \
             "http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb"
+          # sha256 pin: refuse to install a tampered package
+          echo "7cf39d70a639017d1dd7c8d36daa2258063608688e449fddf40ffdd46f992a78  /tmp/libssl1.1.deb" \
+            | sha256sum -c -
           dpkg-deb -x /tmp/libssl1.1.deb ~/ssl11
+
+      - name: Show build metadata
+        env:
+          OO_PS4_TOOLCHAIN: /home/runner/oo/OpenOrbis/PS4Toolchain
+        # `make info` only echoes metadata (title, ids, source counts); it
+        # does not compile anything, so it is a safe sanity check.
+        run: make info
 
       - name: Compile package
         env:
@@ -68,6 +78,22 @@ jobs:
 
       - name: Show artefacts
         run: ls -lh dist/
+
+      - name: Validate package
+        run: |
+          PKG="$(ls dist/*.pkg)"
+          # PS4 packages start with the magic 7F 43 4E 54 ("\x7FCNT")
+          MAGIC="$(head -c 4 "$PKG" | od -An -tx1 | tr -d ' \n')"
+          if [ "$MAGIC" != "7f434e54" ]; then
+            echo "::error::bad package magic: $MAGIC (expected 7f434e54)"
+            exit 1
+          fi
+          SIZE="$(stat -c%s "$PKG")"
+          if [ "$SIZE" -lt 1000000 ]; then
+            echo "::error::package suspiciously small: $SIZE bytes"
+            exit 1
+          fi
+          echo "OK: $PKG ($SIZE bytes)"
 
       - name: Upload .pkg
         uses: actions/upload-artifact@v4
