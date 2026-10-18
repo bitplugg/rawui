@@ -24,10 +24,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ---------------------------------------------------------------------------
 #  OpenOrbis PS4 Toolchain (headers, stub libs, create-fself / PkgTool.Core).
 # ---------------------------------------------------------------------------
-RUN mkdir -p /opt/toolchain-dl /opt/OpenOrbis \
+# NOTE: do not pre-create /opt/OpenOrbis — `mv` would move the toolchain *into*
+# it (→ /opt/OpenOrbis/PS4Toolchain) instead of renaming, and then
+# OO_PS4_TOOLCHAIN=/opt/OpenOrbis would point one level too high.
+RUN mkdir -p /opt/toolchain-dl \
     && curl -fsSL -o /opt/toolchain-dl/${OO_ASSET} \
        https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain/releases/download/${OO_VERSION}/${OO_ASSET} \
     && tar -xzf /opt/toolchain-dl/${OO_ASSET} -C /opt/toolchain-dl \
+    && rm -rf /opt/OpenOrbis \
     && mv /opt/toolchain-dl/OpenOrbis/PS4Toolchain /opt/OpenOrbis \
     && rm -rf /opt/toolchain-dl
 

@@ -33,8 +33,10 @@
       <h2>📦 Download</h2>
       <p>Latest build is automatically published from GitHub Actions.</p>
       <div style="text-align: center;">
-        <a href="https://github.com/bitplugg/rawui/releases/latest/download/RAWUI0001.pkg" class="download-btn" id="pkg-btn">Download RAWUI0001.pkg</a>
-        <a href="https://github.com/bitplugg/rawui/releases/latest" class="gh-btn">View Latest Release</a>
+        <!-- Falls back to the pkg mirrored on Pages; the script below upgrades
+             it to the GitHub release asset once releases exist. -->
+        <a href="RAWUI0001.pkg" class="download-btn" id="pkg-btn">Download RAWUI0001.pkg</a>
+        <a href="https://github.com/bitplugg/rawui/releases" class="gh-btn">View on GitHub Releases</a>
       </div>
       <p><small>Or grab artifacts from <a href="https://github.com/bitplugg/rawui/actions" style="color: #4f9deb;">GitHub Actions</a>.</small></p>
     </div>
@@ -91,7 +93,7 @@
     fetch('https://api.github.com/repos/bitplugg/rawui/releases/latest')
       .then(r => r.json())
       .then(data => {
-        const pkgAsset = data.assets.find(a => a.name.endsWith('.pkg'));
+        const pkgAsset = (data.assets || []).find(a => a.name.endsWith('.pkg'));
         if (pkgAsset) {
           document.getElementById('pkg-btn').href = pkgAsset.browser_download_url;
         }
