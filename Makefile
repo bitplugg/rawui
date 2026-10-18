@@ -78,7 +78,7 @@ ifeq ($(wildcard $(LIBCPP_V1)/cstdint),)
   endif
 endif
 
-CFLAGS      := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -c -nostdinc \
+CFLAGS      := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -c \
                $(EXTRAFLAGS) -isysroot $(TOOLCHAIN) \
                -isystem $(TOOLCHAIN)/include -I$(SRCDIR)
 CXXFLAGS    := $(CFLAGS) -nostdinc++ -I$(LIBCPP_V1) -isystem $(LIBCPP_V1)
