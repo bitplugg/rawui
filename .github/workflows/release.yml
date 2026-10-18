@@ -1,12 +1,25 @@
 name: release
 
-# Push a tag like v1.0.0 → build the FPKG with that version baked into
-# param.sfo, generate a changelog from commits/PRs since the previous tag,
-# and publish a GitHub Release with the .pkg + SHA256 checksum.
+# Release triggers:
+#   * push a tag like v1.2.3       → release v1.2.3
+#   * manual run (workflow_dispatch):
+#       - version field empty   → auto-increment patch of the latest tag
+#                                 (0.0.1→0.0.2, 0.1.0→0.1.1; at .9 rolls over:
+#                                  0.1.9→0.2.0, 1.0.9→1.1.0)
+#       - version field filled  → that version is used (v prefix optional)
+# The job builds the FPKG with the version baked into param.sfo, generates a
+# changelog from commits/PRs since the previous release, and publishes a
+# GitHub Release with the .pkg + SHA256 checksum.
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g. 1.2.3). Leave empty to auto-increment the patch of the latest tag.'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -16,15 +29,41 @@ jobs:
     name: Derive version
     runs-on: ubuntu-24.04
     outputs:
-      version: ${{ steps.ver.outputs.version }}
+      version: ${{ steps.ver.outputs.version }}   # MAJOR.MINOR for param.sfo
+      tag: ${{ steps.ver.outputs.tag }}           # vX.Y.Z for the release
     steps:
       - id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          IN_VERSION: ${{ inputs.version }}
         run: |
-          # v1.2.3 → 1.2 (PS4 param.sfo VERSION is MAJOR.MINOR)
-          TAG="${GITHUB_REF_NAME}"
-          MAJOR="${TAG#v}"; MAJOR="${MAJOR%%.*}"
-          MINOR="$(echo "${TAG#v}" | cut -d. -f2)"
-          echo "version=${MAJOR}.${MINOR:-00}" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT" = "push" ]; then
+            # version comes from the tag itself
+            TAG="${GITHUB_REF_NAME}"
+          elif [ -n "$IN_VERSION" ]; then
+            TAG="v${IN_VERSION#v}"
+          else
+            # latest existing vN.N.N tag (version-sort), empty if none yet
+            LAST="$(gh api "repos/${GITHUB_REPOSITORY}/tags?per_page=100" \
+                      --jq '.[].name' \
+                    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)"
+            if [ -z "$LAST" ]; then
+              TAG="v0.0.1"
+            else
+              M="${LAST#v}"
+              MAJ="${M%%.*}"; REST="${M#*.}"
+              MIN="${REST%%.*}"; PAT="${REST#*.}"
+              PAT=$((PAT + 1))
+              if [ "$PAT" -gt 9 ]; then PAT=0; MIN=$((MIN + 1)); fi
+              TAG="v${MAJ}.${MIN}.${PAT}"
+            fi
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          # PS4 param.sfo VERSION is MAJOR.MINOR
+          T="${TAG#v}"
+          echo "version=${T%%.*}.$(echo "$T" | cut -d. -f2)" >> "$GITHUB_OUTPUT"
+          echo "resolved tag: $TAG"
 
   build:
     name: Build FPKG
@@ -58,14 +97,15 @@ jobs:
       - name: Generate changelog
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.meta.outputs.tag }}
         run: |
           # GitHub's own notes generator: lists PRs and commits since the
           # previous release; falls back to everything if there is none.
           NOTES="$(gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-                     -F tag_name="${GITHUB_REF_NAME}" \
+                     -F tag_name="${TAG}" \
                      -F target_commitish="${GITHUB_SHA}" --jq .body)" || NOTES=""
 
-          PKG="dist/RAWUI0001-${GITHUB_REF_NAME}.pkg"
+          PKG="dist/RAWUI0001-${TAG}.pkg"
           cp "dist/"*.pkg "$PKG"
 
           cat > notes.md <<EOF
@@ -74,7 +114,7 @@ jobs:
           **Settings → Debug Settings → Game → Package Installer** (нужен GoldHEN).
 
           ## Что нового
-          ${NOTES:-См. коммиты: https://github.com/${GITHUB_REPOSITORY}/commits/${GITHUB_REF_NAME}}
+          ${NOTES:-См. коммиты: https://github.com/${GITHUB_REPOSITORY}/commits/${TAG}}
 
           ## Проверка целостности
           \`\`\`
@@ -85,11 +125,14 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.meta.outputs.tag }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
+          # gh release create makes the tag itself if it doesn't exist yet
+          # (manual runs create a fresh tag at the current commit).
+          gh release create "$TAG" \
             --repo "${GITHUB_REPOSITORY}" \
+            --target "$GITHUB_SHA" \
             --title "RAW UI ${{ needs.meta.outputs.version }}" \
             --notes-file notes.md \
-            --verify-tag \
-            "dist/RAWUI0001-${GITHUB_REF_NAME}.pkg" \
+            "dist/RAWUI0001-${TAG}.pkg" \
             dist/SHA256SUMS.txt
