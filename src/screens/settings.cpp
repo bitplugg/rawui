@@ -28,6 +28,55 @@ void SettingsScreen::onEnter(App& app) {
     scroll_.reset();
 }
 
+void SettingsScreen::drawThemePreset(App& app, const Rect& list, float& y, float itemH,
+                                     int index) {
+    ui::Ctx& ctx = app.ctx();
+    const Scheme& c = app.colors();
+    const float s = ctx.displayScale;
+    const AppConfig& cfg = app.config();
+    const ThemePreset& p = kThemePresets[index];
+
+    const Rect r(list.x, y, list.w, itemH);
+    const bool active = approxColor(Color::fromHex(cfg.seedRgb), Color::fromHex(p.seed)) &&
+                        cfg.dark == p.dark && cfg.vibrant == p.vibrant;
+
+    ui::drawText(ctx, p.name, ctx.type().titleMedium,
+                 Rect(r.x + 4.0f * s, r.y, r.w * 0.6f, r.h * 0.5f),
+                 active ? c.primary : c.onSurface, ui::Align::Left, ui::VAlign::Middle);
+    ui::drawText(ctx, p.description, ctx.type().bodySmall,
+                 Rect(r.x + 4.0f * s, r.y + r.h * 0.5f - 6.0f * s, r.w * 0.6f, r.h * 0.5f),
+                 c.onSurfaceVariant, ui::Align::Left, ui::VAlign::Middle);
+
+    // A two-dot preview: the seed and what the surface it produces looks like.
+    const Scheme preview = makeScheme(Color::fromHex(p.seed), p.dark,
+                                      SchemeOptions{p.contrast, p.vibrant, true});
+    const float dotR = 18.0f * s;
+    const float dx = r.right() - (active ? 140.0f : 84.0f);
+    ctx.canvas->fillCircle(dx, r.cy(), dotR, preview.primary);
+    ctx.canvas->fillCircle(dx + dotR * 2.2f, r.cy(), dotR, preview.surface);
+    ctx.canvas->strokeRoundRect(Rect(dx + dotR * 1.2f, r.cy() - dotR, dotR * 2.0f, dotR * 2.0f),
+                                dotR, 1.5f * s, c.outlineVariant);
+    if (active) {
+        ui::drawText(ctx, "ACTIVE", ctx.type().labelSmall,
+                     Rect(r.right() - 44.0f * s, r.y, 40.0f * s, r.h), c.primary, ui::Align::Left,
+                     ui::VAlign::Middle);
+    }
+
+    ctx.focus->add(r, kThemeBase + index, true, 12.0f * s);
+    y += itemH + 8.0f * s;
+}
+
+void SettingsScreen::applyThemePreset(App& app, int index) {
+    AppConfig& cfg = app.config();
+    const ThemePreset& p = kThemePresets[index];
+    cfg.seedRgb = p.seed;
+    cfg.dark = p.dark;
+    cfg.vibrant = p.vibrant;
+    cfg.contrast = p.contrast;
+    apply(app, true);
+    app.toast(std::string("Theme: ") + p.name);
+}
+
 std::vector<Color> SettingsScreen::seedSwatches() const {
     return {Color::fromHex(0x6750A4), Color::fromHex(0x006C4D), Color::fromHex(0x00497F),
             Color::fromHex(0x7A3045), Color::fromHex(0x7C5800), Color::fromHex(0x4C3B6F)};
@@ -59,7 +108,17 @@ void SettingsScreen::draw(App& app) {
 
     ctx.canvas->pushClip(list);
 
-    float y = list.y;
+    float y = list.y - scroll_.offset;
+
+    // --- themes -------------------------------------------------------------
+    ui::drawText(ctx, "Themes", ctx.type().labelLarge,
+                 Rect(list.x, y, list.w, sectH), c.onSurfaceVariant, ui::Align::Left,
+                 ui::VAlign::Middle);
+    y += sectH;
+
+    for (int i = 0; i < kThemePresetCount && i < kThemeMax - kThemeBase; ++i) {
+        drawThemePreset(app, list, y, itemH, i);
+    }
 
     // --- appearance ---------------------------------------------------------
     ui::drawText(ctx, "Appearance", ctx.type().labelLarge,
@@ -188,7 +247,19 @@ void SettingsScreen::draw(App& app) {
     }
 
     ctx.canvas->popClip();
-    scroll_.offset = clampf(scroll_.offset, 0.0f, maxf(0.0f, y - list.y - list.h));
+
+    // Keep the focused row on screen and clamp the offset.
+    const Rect fr = ctx.focus->currentRect();
+    if (fr.h > 0.0f) {
+        if (fr.y < list.y) {
+            scroll_.target -= list.y - fr.y;
+        } else if (fr.bottom() > list.bottom()) {
+            scroll_.target += fr.bottom() - list.bottom();
+        }
+    }
+    const float maxOff = maxf(0.0f, (y + scroll_.offset) - list.y - list.h);
+    scroll_.target = clampf(scroll_.target, 0.0f, maxOff);
+    scroll_.update(ctx.dt);
 }
 
 bool SettingsScreen::onAdjust(App& app, int focusId, int delta) {
@@ -221,6 +292,11 @@ void SettingsScreen::onConfirm(App& app, int focusId) {
     if (focusId == kToggleVibrant) {
         cfg.vibrant = !cfg.vibrant;
         apply(app, true);
+        return;
+    }
+    if (focusId >= kThemeBase && focusId < kThemeMax) {
+        const int idx = focusId - kThemeBase;
+        if (idx >= 0 && idx < kThemePresetCount) applyThemePreset(app, idx);
         return;
     }
     if (focusId >= kSeedBase && focusId < kSliderContrast) {

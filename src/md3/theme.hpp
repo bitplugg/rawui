@@ -19,6 +19,19 @@ struct ThemeConfig {
     float motionScale = 1.0f;  // 0 disables animation
 };
 
+// A complete named look: seed + mode + chroma treatment.  Picking one in
+// Settings applies all four values at once (the theme "stylesheets").
+struct ThemePreset {
+    const char* name;
+    const char* description;
+    uint32_t seed;
+    bool dark;
+    bool vibrant;
+    float contrast;
+};
+extern const ThemePreset kThemePresets[];
+extern const int kThemePresetCount;
+
 struct Theme {
     // Live values (what widgets read).
     Scheme scheme;

@@ -171,7 +171,7 @@ Scheme makeScheme(const Color& seed, bool dark, const SchemeOptions& options) {
 
     const auto P = [&](float t) { return toneAt(t, hue, cPrimary * k); };
     const auto S = [&](float t) { return toneAt(t, hue, cSecondary * k); };
-    const auto T = [&](float t) { return toneAt(tertiaryHue, t, cTertiary * k); };
+    const auto T = [&](float t) { return toneAt(t, tertiaryHue, cTertiary * k); };
     const auto N = [&](float t) { return toneAt(t, hue, cNeutral); };
     const auto NV = [&](float t) { return toneAt(t, hue, cNeutralVariant); };
     // Error is always the Material red family, re-tuned for the theme's contrast.

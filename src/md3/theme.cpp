@@ -2,6 +2,24 @@
 
 namespace rawui {
 
+// ---------------------------------------------------------------------------
+// Theme presets.  The seeds reuse the hand-picked Material You palette; each
+// entry bundles the toggles that go with it so Settings (and the web theme
+// generator) can offer one-click looks.
+const ThemePreset kThemePresets[] = {
+    {"Amethyst Dark", "Material baseline, dark", 0x6750A4, true, false, 0.0f},
+    {"Amethyst Light", "Material baseline, light", 0x6750A4, false, false, 0.0f},
+    {"Ocean", "Deep blue, dark, calm", 0x00497F, true, false, 0.0f},
+    {"Meadow", "Green, light, airy", 0x006C4D, false, false, 0.0f},
+    {"Sunset", "Warm red, dark, vivid", 0x7A3045, true, true, 0.1f},
+    {"Honey", "Amber, light, golden", 0x7C5800, false, false, 0.0f},
+    {"Violet Night", "Purple, dark, high contrast", 0x4C3B6F, true, false, 0.2f},
+    {"Graphite", "Neutral grey, dark, focused", 0x5A5A66, true, false, -0.1f},
+    {"Sky", "Bright blue, light, airy", 0x0B57D0, false, false, 0.0f},
+    {"Cyber", "Electric teal, dark, vibrant", 0x00639B, true, true, 0.1f},
+};
+const int kThemePresetCount = static_cast<int>(sizeof(kThemePresets) / sizeof(kThemePresets[0]));
+
 void Theme::apply(const ThemeConfig& cfg, float displayScale) {
     config = cfg;
     displayScale_ = displayScale;

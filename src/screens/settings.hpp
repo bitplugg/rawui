@@ -44,14 +44,17 @@ private:
         kSliderType = 51,
         kSliderMotion = 52,
         kReset = 80,
+        kThemeBase = 100,
+        kThemeMax = kThemeBase + 16,
     };
 
     std::vector<Color> seedSwatches() const;
     void apply(App& app, bool animate);
     void reset(App& app);
+    void drawThemePreset(App& app, const Rect& list, float& y, float itemH, int index);
+    void applyThemePreset(App& app, int index);
 
     ListScroll scroll_;
-    int focusedSection_ = 0;
 };
 
 }  // namespace rawui

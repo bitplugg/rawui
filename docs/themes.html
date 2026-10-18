@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAW UI - Theme Generator</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: radial-gradient(ellipse at top, #1a1a1a, #0f0f0f); color: #fff; line-height: 1.6; }
+    .container { max-width: 1000px; margin: 0 auto; }
+    h1 { color: #4d9de0; text-align: center; margin: 1rem 0 0.5rem; font-size: 2.2rem; }
+    .subtitle { text-align: center; color: #a3a3a3; margin-bottom: 2rem; }
+    .grid { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: linear-gradient(180deg, #1a1a1a 0%, #151515 100%); border-radius: 12px; padding: 24px; border: 1px solid #333; }
+    .card h2 { margin-top: 0; font-size: 1.1rem; color: #e5e5e5; }
+    label { display: block; font-size: 0.85rem; color: #a3a3a3; margin: 14px 0 4px; }
+    input[type="color"] { width: 100%; height: 40px; border: 1px solid #333; border-radius: 8px; background: #222; cursor: pointer; }
+    input[type="range"] { width: 100%; }
+    select { width: 100%; padding: 8px; border-radius: 8px; background: #222; color: #fff; border: 1px solid #333; }
+    .toggle { display: flex; gap: 8px; }
+    .toggle button { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #333; background: #222; color: #a3a3a3; cursor: pointer; }
+    .toggle button.on { background: #2d9cdb; color: #fff; border-color: #2d9cdb; }
+    .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .presets button { border: 1px solid #333; background: #222; color: #ddd; border-radius: 999px; padding: 5px 12px; font-size: 0.78rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .presets button:hover { border-color: #4d9de0; }
+    .presets .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    /* live preview */
+    .preview { border-radius: 12px; overflow: hidden; border: 1px solid #333; }
+    .pv-rail { display: flex; align-items: center; gap: 14px; padding: 14px 18px; }
+    .pv-content { padding: 18px; min-height: 260px; }
+    .pv-title { font-weight: 600; font-size: 1.05rem; }
+    .pv-card { border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+    .pv-row { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+    .pv-btn { border-radius: 999px; padding: 8px 18px; font-size: 0.85rem; border: none; }
+    .pv-outlined { background: transparent; border: 1px solid; padding: 7px 17px; border-radius: 999px; font-size: 0.85rem; }
+    .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin-top: 12px; }
+    .sw { border-radius: 8px; height: 58px; padding: 6px 8px; font-size: 0.66rem; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid rgba(128,128,128,0.25); }
+    .sw b { font-weight: 600; font-size: 0.62rem; word-break: break-all; }
+    pre { background: #0c0c0c; border: 1px solid #333; border-radius: 8px; padding: 14px; overflow-x: auto; font-size: 0.8rem; }
+    .btn { display: inline-block; background: #2d9cdb; color: #fff; padding: 9px 18px; border-radius: 10px; border: none; cursor: pointer; font-size: 0.88rem; margin-right: 8px; }
+    .btn.secondary { background: #333; }
+    footer { text-align: center; margin-top: 36px; color: #888; }
+    a { color: #4d9de0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 RAW UI Theme Generator</h1>
+    <p class="subtitle">The same Material 3 engine that runs on the console - tweak a seed, copy the config, drop it on your PS4.</p>
+
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h2>Controls</h2>
+
+          <label>Preset</label>
+          <div class="presets" id="presets"></div>
+
+          <label>Seed colour</label>
+          <input type="color" id="seed" value="#6750A4">
+
+          <label>Mode</label>
+          <div class="toggle">
+            <button id="darkBtn" class="on">Dark</button>
+            <button id="lightBtn">Light</button>
+          </div>
+
+          <label>Vibrant palette <span id="vibVal" style="color:#4d9de0">off</span></label>
+          <div class="toggle">
+            <button id="vibOff" class="on">Off</button>
+            <button id="vibOn">On</button>
+          </div>
+
+          <label>Contrast <span id="cVal" style="color:#4d9de0">0.00</span></label>
+          <input type="range" id="contrast" min="-0.3" max="0.3" step="0.05" value="0">
+
+          <label>Type scale <span id="tVal" style="color:#4d9de0">1.00</span></label>
+          <input type="range" id="typeScale" min="0.9" max="1.2" step="0.02" value="1">
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:20px">
+          <h2>Live preview</h2>
+          <div class="preview" id="preview">
+            <div class="pv-rail">
+              <div class="pv-title">RAW UI</div>
+              <div style="font-size:0.8rem" id="pvSub">Homebrew shell</div>
+            </div>
+            <div class="pv-content">
+              <div class="pv-card" id="pvCard">
+                <div style="font-weight:600" id="pvCardTitle">Files</div>
+                <div style="font-size:0.82rem" id="pvCardSub">/data/RAWUI</div>
+                <div class="pv-row">
+                  <button class="pv-btn" id="pvPrimary">Install</button>
+                  <button class="pv-btn" id="pvTonal">Refresh</button>
+                  <button class="pv-outlined" id="pvOutlined">Delete</button>
+                </div>
+              </div>
+              <div style="font-size:0.8rem" id="pvStatus">✔ GoldHEN detected · success &amp; warning roles below</div>
+              <div class="pv-row">
+                <span style="border-radius:999px;padding:5px 14px;font-size:0.78rem" id="pvSuccess">Success</span>
+                <span style="border-radius:999px;padding:5px 14px;font-size:0.78rem" id="pvWarning">Warning</span>
+                <span style="border-radius:999px;padding:5px 14px;font-size:0.78rem" id="pvError">Error</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:20px">
+          <h2>Palette</h2>
+          <div class="swatches" id="swatches"></div>
+        </div>
+
+        <div class="card">
+          <h2>config.ini</h2>
+          <p style="font-size:0.85rem;color:#a3a3a3">Copy this to <code>/data/RAWUI/config.ini</code> via FTP (or GoldHEN's web server) and restart RAW UI.</p>
+          <pre id="ini"></pre>
+          <button class="btn" id="copyBtn">Copy</button>
+          <button class="btn secondary" id="downloadBtn">Download config.ini</button>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <p><a href="index.html">← Back to RAW UI</a></p>
+    </footer>
+  </div>
+
+  <script>
+  // ===========================================================================
+  //  Straight port of src/md3/color.cpp: same Lab/LCh math, same tonal steps,
+  //  so the preview matches what the console renders.
+  // ===========================================================================
+  const Xn = 0.95047, Yn = 1.0, Zn = 1.08883;
+  const EPS = 216 / 24389, KAPPA = 24389 / 27;
+
+  const srgbToLinear = c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  const linearToSrgb = c => c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+  const labF = t => t > EPS ? Math.cbrt(t) : (KAPPA * t + 16) / 116;
+  const labFInv = t => { const t3 = t * t * t; return t3 > EPS ? t3 : (116 * t - 16) / KAPPA; };
+
+  function rgbToLab(r, g, b) {
+    r = srgbToLinear(r / 255); g = srgbToLinear(g / 255); b = srgbToLinear(b / 255);
+    const x = 0.4124564 * r + 0.3575761 * g + 0.1804375 * b;
+    const y = 0.2126729 * r + 0.7151522 * g + 0.0721750 * b;
+    const z = 0.0193339 * r + 0.1191920 * g + 0.9503041 * b;
+    const fx = labF(x / Xn), fy = labF(y / Yn), fz = labF(z / Zn);
+    return { l: 116 * fy - 16, a: 500 * (fx - fy), b: 200 * (fy - fz) };
+  }
+
+  function labToLinearRgb(lab) {
+    const fy = (lab.l + 16) / 116;
+    const fx = fy + lab.a / 500, fz = fy - lab.b / 200;
+    const x = Xn * labFInv(fx), y = Yn * labFInv(fy), z = Zn * labFInv(fz);
+    return [
+      3.2404542 * x - 1.5371385 * y - 0.4985314 * z,
+      -0.9692660 * x + 1.8760108 * y + 0.0415560 * z,
+      0.0556434 * x - 0.2040259 * y + 1.0572252 * z,
+    ];
+  }
+
+  const inGamut = (r, g, b) => {
+    const t = 1e-4;
+    return r >= -t && r <= 1 + t && g >= -t && g <= 1 + t && b >= -t && b <= 1 + t;
+  };
+  const toByte = v => Math.min(255, Math.max(0, Math.round(linearToSrgb(Math.min(1, Math.max(0, v))) * 255)));
+
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+  function maxChromaInGamut(L, h) {
+    let lo = 0, hi = 160;
+    for (let i = 0; i < 24; ++i) {
+      const mid = (lo + hi) / 2;
+      const rad = h * Math.PI / 180;
+      const lab = { l: L, a: mid * Math.cos(rad), b: mid * Math.sin(rad) };
+      const [r, g, b] = labToLinearRgb(lab);
+      if (inGamut(r, g, b)) lo = mid; else hi = mid;
+    }
+    return lo;
+  }
+
+  function toneAt(L, h, chroma) {
+    const rad = h * Math.PI / 180;
+    const c = clamp(chroma, 0, maxChromaInGamut(L, h));
+    const lab = { l: L, a: c * Math.cos(rad), b: c * Math.sin(rad) };
+    const [r, g, b] = labToLinearRgb(lab);
+    return { r: toByte(r), g: toByte(g), b: toByte(b) };
+  }
+
+  const hex = c => '#' + [c.r, c.g, c.b].map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+  const css = c => `rgb(${c.r},${c.g},${c.b})`;
+
+  function makeScheme(seedHex, dark, contrast, vibrant) {
+    const n = parseInt(seedHex.replace('#', ''), 16);
+    const seed = { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+    const lab = rgbToLab(seed.r, seed.g, seed.b);
+    const seedC = Math.sqrt(lab.a * lab.a + lab.b * lab.b);
+    let seedH = Math.atan2(lab.b, lab.a) * 180 / Math.PI;
+    if (seedH < 0) seedH += 360;
+
+    const hue = seedH;
+    const baseChroma = Math.max(seedC, 8);
+    const cP = vibrant ? baseChroma * 1.15 : baseChroma;
+    const cS = baseChroma * 0.42;
+    const cT = baseChroma * 0.75;
+    const cN = 3, cNV = 8;
+    const tertiaryHue = (hue + 60) % 360;
+    const k = 1 + contrast * 0.35;
+
+    const P = t => toneAt(t, hue, cP * k);
+    const S = t => toneAt(t, hue, cS * k);
+    const T = t => toneAt(t, tertiaryHue, cT * k);
+    const N = t => toneAt(t, hue, cN);
+    const NV = t => toneAt(t, hue, cNV);
+    const E = t => toneAt(t, 27, 60 * k);
+
+    const sc = {};
+    if (!dark) {
+      Object.assign(sc, {
+        primary: P(40), onPrimary: P(100), primaryContainer: P(90), onPrimaryContainer: P(10),
+        secondary: S(40), onSecondary: S(100), secondaryContainer: S(90), onSecondaryContainer: S(10),
+        tertiary: T(40), onTertiary: T(100), tertiaryContainer: T(90), onTertiaryContainer: T(10),
+        error: E(40), onError: E(100), errorContainer: E(90), onErrorContainer: E(10),
+        surface: N(98), onSurface: N(10), surfaceVariant: NV(90), onSurfaceVariant: NV(30),
+        surfaceContainerLow: N(96), surfaceContainer: N(94), surfaceContainerHigh: N(92),
+        outline: NV(50), outlineVariant: NV(80),
+        success: toneAt(45, 140, 45), onSuccess: toneAt(100, 140, 40),
+        successContainer: toneAt(90, 140, 30), onSuccessContainer: toneAt(20, 140, 35),
+        warning: toneAt(45, 80, 55), onWarning: toneAt(100, 80, 50),
+        warningContainer: toneAt(90, 80, 40), onWarningContainer: toneAt(20, 80, 45),
+      });
+    } else {
+      Object.assign(sc, {
+        primary: P(80), onPrimary: P(20), primaryContainer: P(30), onPrimaryContainer: P(90),
+        secondary: S(80), onSecondary: S(20), secondaryContainer: S(30), onSecondaryContainer: S(90),
+        tertiary: T(80), onTertiary: T(20), tertiaryContainer: T(30), onTertiaryContainer: T(90),
+        error: E(80), onError: E(20), errorContainer: E(30), onErrorContainer: E(90),
+        surface: N(6), onSurface: N(90), surfaceVariant: NV(30), onSurfaceVariant: NV(80),
+        surfaceContainerLow: N(10), surfaceContainer: N(12), surfaceContainerHigh: N(17),
+        outline: NV(60), outlineVariant: NV(30),
+        success: toneAt(80, 140, 40), onSuccess: toneAt(20, 140, 30),
+        successContainer: toneAt(30, 140, 35), onSuccessContainer: toneAt(90, 140, 25),
+        warning: toneAt(80, 80, 50), onWarning: toneAt(20, 80, 40),
+        warningContainer: toneAt(30, 80, 45), onWarningContainer: toneAt(90, 80, 35),
+      });
+    }
+    return sc;
+  }
+
+  // ---------------------------------------------------------------- UI glue --
+  // Presets mirror kThemePresets in src/md3/theme.cpp.
+  const PRESETS = [
+    { name: 'Amethyst Dark',  seed: '6750A4', dark: true,  vibrant: false, contrast: 0 },
+    { name: 'Amethyst Light', seed: '6750A4', dark: false, vibrant: false, contrast: 0 },
+    { name: 'Ocean',          seed: '00497F', dark: true,  vibrant: false, contrast: 0 },
+    { name: 'Meadow',         seed: '006C4D', dark: false, vibrant: false, contrast: 0 },
+    { name: 'Sunset',         seed: '7A3045', dark: true,  vibrant: true,  contrast: 0.1 },
+    { name: 'Honey',          seed: '7C5800', dark: false, vibrant: false, contrast: 0 },
+    { name: 'Violet Night',   seed: '4C3B6F', dark: true,  vibrant: false, contrast: 0.2 },
+    { name: 'Graphite',       seed: '5A5A66', dark: true,  vibrant: false, contrast: -0.1 },
+    { name: 'Sky',            seed: '0B57D0', dark: false, vibrant: false, contrast: 0 },
+    { name: 'Cyber',          seed: '00639B', dark: true,  vibrant: true,  contrast: 0.1 },
+  ];
+
+  const state = { seed: '6750A4', dark: true, vibrant: false, contrast: 0, typeScale: 1 };
+
+  const $ = id => document.getElementById(id);
+
+  function renderPresets() {
+    const box = $('presets');
+    box.innerHTML = '';
+    for (const p of PRESETS) {
+      const b = document.createElement('button');
+      b.innerHTML = `<span class="dot" style="background:#${p.seed}"></span>${p.name}`;
+      b.onclick = () => {
+        Object.assign(state, p);
+        $('seed').value = '#' + p.seed;
+        render();
+      };
+      box.appendChild(b);
+    }
+  }
+
+  function setToggle(onBtn, offBtn, isOn) {
+    onBtn.classList.toggle('on', isOn);
+    offBtn.classList.toggle('on', !isOn);
+  }
+
+  function render() {
+    const sc = makeScheme(state.seed, state.dark, state.contrast, state.vibrant);
+
+    const pv = $('preview');
+    pv.style.background = css(sc.surface);
+    pv.style.color = css(sc.onSurface);
+    $('pvSub').style.color = css(sc.onSurfaceVariant);
+    $('pvCard').style.background = css(sc.surfaceContainer);
+    $('pvCardTitle').style.color = css(sc.onSurface);
+    $('pvCardSub').style.color = css(sc.onSurfaceVariant);
+    $('pvPrimary').style.background = css(sc.primary);
+    $('pvPrimary').style.color = css(sc.onPrimary);
+    $('pvTonal').style.background = css(sc.secondaryContainer);
+    $('pvTonal').style.color = css(sc.onSecondaryContainer);
+    $('pvOutlined').style.color = css(sc.primary);
+    $('pvOutlined').style.borderColor = css(sc.outline);
+    $('pvStatus').style.color = css(sc.onSurfaceVariant);
+    $('pvSuccess').style.background = css(sc.successContainer);
+    $('pvSuccess').style.color = css(sc.onSuccessContainer);
+    $('pvWarning').style.background = css(sc.warningContainer);
+    $('pvWarning').style.color = css(sc.onWarningContainer);
+    $('pvError').style.background = css(sc.errorContainer);
+    $('pvError').style.color = css(sc.onErrorContainer);
+
+    const roles = [
+      ['primary', sc.primary, sc.onPrimary], ['onPrimary', sc.onPrimary, sc.primary],
+      ['primaryContainer', sc.primaryContainer, sc.onPrimaryContainer],
+      ['onPrimaryContainer', sc.onPrimaryContainer, sc.primaryContainer],
+      ['secondary', sc.secondary, sc.onSecondary],
+      ['secondaryContainer', sc.secondaryContainer, sc.onSecondaryContainer],
+      ['tertiary', sc.tertiary, sc.onTertiary],
+      ['tertiaryContainer', sc.tertiaryContainer, sc.onTertiaryContainer],
+      ['error', sc.error, sc.onError],
+      ['errorContainer', sc.errorContainer, sc.onErrorContainer],
+      ['surface', sc.surface, sc.onSurface], ['onSurface', sc.onSurface, sc.surface],
+      ['surfaceVariant', sc.surfaceVariant, sc.onSurfaceVariant],
+      ['surfaceContainer', sc.surfaceContainer, sc.onSurface],
+      ['surfaceContainerHigh', sc.surfaceContainerHigh, sc.onSurface],
+      ['outline', sc.outline, sc.surface],
+      ['success', sc.success, sc.onSuccess],
+      ['successContainer', sc.successContainer, sc.onSuccessContainer],
+      ['warning', sc.warning, sc.onWarning],
+      ['warningContainer', sc.warningContainer, sc.onWarningContainer],
+    ];
+    $('swatches').innerHTML = roles.map(([name, bg, fg]) =>
+      `<div class="sw" style="background:${css(bg)};color:${css(fg)}"><b>${name}</b><b>${hex(bg)}</b></div>`
+    ).join('');
+
+    $('ini').textContent = [
+      '# RAW UI settings',
+      `seed=${state.seed.toUpperCase()}`,
+      `dark=${state.dark ? 1 : 0}`,
+      `vibrant=${state.vibrant ? 1 : 0}`,
+      `contrast=${state.contrast.toFixed(2)}`,
+      `type_scale=${state.typeScale.toFixed(2)}`,
+      'motion_scale=1.00',
+      'show_hidden=0',
+      'sort_mode=0',
+      'last_screen=0',
+    ].join('\n');
+
+    setToggle($('darkBtn'), $('lightBtn'), state.dark);
+    setToggle($('vibOn'), $('vibOff'), state.vibrant);
+    $('vibVal').textContent = state.vibrant ? 'on' : 'off';
+    $('cVal').textContent = state.contrast.toFixed(2);
+    $('tVal').textContent = state.typeScale.toFixed(2);
+  }
+
+  $('seed').oninput = e => { state.seed = e.target.value.slice(1).toUpperCase(); render(); };
+  $('darkBtn').onclick = () => { state.dark = true; render(); };
+  $('lightBtn').onclick = () => { state.dark = false; render(); };
+  $('vibOn').onclick = () => { state.vibrant = true; render(); };
+  $('vibOff').onclick = () => { state.vibrant = false; render(); };
+  $('contrast').oninput = e => { state.contrast = parseFloat(e.target.value); render(); };
+  $('typeScale').oninput = e => { state.typeScale = parseFloat(e.target.value); render(); };
+  $('copyBtn').onclick = () => {
+    navigator.clipboard.writeText($('ini').textContent).then(() => {
+      $('copyBtn').textContent = 'Copied!';
+      setTimeout(() => $('copyBtn').textContent = 'Copy', 1200);
+    });
+  };
+  $('downloadBtn').onclick = () => {
+    const blob = new Blob([$('ini').textContent + '\n'], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'config.ini';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  renderPresets();
+  render();
+  </script>
+</body>
+</html>
