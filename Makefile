@@ -78,10 +78,10 @@ ifeq ($(wildcard $(LIBCPP_V1)/cstdint),)
   endif
 endif
 
-CFLAGS      := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -c \
+CFLAGS      := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -c -nostdinc \
                $(EXTRAFLAGS) -isysroot $(TOOLCHAIN) \
                -isystem $(TOOLCHAIN)/include -I$(SRCDIR)
-CXXFLAGS    := $(CFLAGS) -I$(LIBCPP_V1) -isystem $(LIBCPP_V1)
+CXXFLAGS    := $(CFLAGS) -nostdinc++ -I$(LIBCPP_V1) -isystem $(LIBCPP_V1)
 LDFLAGS     := -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr \
                -L$(TOOLCHAIN)/lib $(LIBS) $(TOOLCHAIN)/lib/crt1.o
 
