@@ -13,8 +13,8 @@
 # ---------------------------------------------------------------- metadata --
 TITLE       := RAW UI
 VERSION     := 1.00
-TITLE_ID    := RAWUI0001
-CONTENT_ID  := IV0000-RAWUI0001_00-RAWUIUI000000000
+TITLE_ID    := RAWU00001
+CONTENT_ID  := IV0000-RAWU00001_00-RAWUIUI000000000
 
 # ------------------------------------------------------------ directories ---
 SRCDIR      := src

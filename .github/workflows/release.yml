@@ -75,11 +75,11 @@ jobs:
           else
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           fi
-          # PS4 param.sfo VERSION is MAJOR.MINOR; strip any prerelease suffix
-          # so v1.2.3-rc1 becomes "1.2", not "1.2-rc1"
+          # PS4 param.sfo VERSION is MAJOR.MINOR (NN.NN format)
+          # strip any prerelease suffix so v1.2.3-rc1 becomes 1.2
           MAJ="$(printf '%s' "${TAG#v}" | cut -d. -f1 | grep -oE '^[0-9]+' || true)"
           MIN="$(printf '%s' "${TAG#v}" | cut -d. -f2 | grep -oE '^[0-9]+' || true)"
-          echo "version=${MAJ:-1}.${MIN:-0}" >> "$GITHUB_OUTPUT"
+          printf "version=%02d.%02d\n" "${MAJ:-1}" "${MIN:-0}" >> "$GITHUB_OUTPUT"
           echo "resolved tag: $TAG"
 
   build:

@@ -74,7 +74,7 @@ jobs:
           LD_LIBRARY_PATH: /home/runner/ssl11/usr/lib/x86_64-linux-gnu
         # build.sh forwards extra args to make; command-line vars override
         # the Makefile's := defaults, so VERSION comes from the release tag.
-        run: bash tools/build.sh VERSION="${{ inputs.version || '1.00' }}"
+        run: bash tools/build.sh VERSION="${{ inputs.version || '01.00' }}"
 
       - name: Show artefacts
         run: ls -lh dist/
