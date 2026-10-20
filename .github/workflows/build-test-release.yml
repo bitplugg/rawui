@@ -499,6 +499,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      actions: write   # kick pages.yml explicitly if the docs/ push did not
     steps:
       - name: Checkout
         uses: actions/checkout@v7
