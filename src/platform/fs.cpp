@@ -185,6 +185,51 @@ std::vector<std::string> mountPoints() {
     return out;
 }
 
+std::vector<std::string> usbRoots() {
+    static const char* kExtra[] = {"/mnt/ext0", "/mnt/ext1"};
+
+    std::vector<std::string> out;
+    for (int i = 0; i < 8; ++i) {
+        std::string p = "/mnt/usb";
+        p += static_cast<char>('0' + i);
+        if (isDir(p)) out.push_back(p);
+    }
+    for (const char* c : kExtra) {
+        if (isDir(c)) out.emplace_back(c);
+    }
+    return out;
+}
+
+std::string readFile(const std::string& path, size_t maxBytes) {
+    std::FILE* fh = std::fopen(path.c_str(), "rb");
+    if (!fh) return {};
+
+    std::string out;
+    char buf[1024];
+    size_t n = 0;
+    while ((n = std::fread(buf, 1, sizeof(buf), fh)) > 0) {
+        // A capped read still returns the prefix rather than nothing, so a
+        // truncated theme file is reported as malformed rather than missing.
+        if (out.size() + n > maxBytes) {
+            out.append(buf, maxBytes - out.size());
+            break;
+        }
+        out.append(buf, n);
+    }
+    std::fclose(fh);
+    return out;
+}
+
+bool writeFile(const std::string& path, const std::string& data) {
+    std::FILE* fh = std::fopen(path.c_str(), "wb");
+    if (!fh) return false;
+
+    const bool ok = data.empty() ||
+                    std::fwrite(data.data(), 1, data.size(), fh) == data.size();
+    std::fclose(fh);
+    return ok;
+}
+
 }  // namespace fs
 
 // ---------------------------------------------------------------------------

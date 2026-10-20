@@ -15,12 +15,12 @@ namespace rawui {
 
 class HenScreen : public Screen {
 public:
-    const char* title() const override { return "GoldHEN"; }
+    const char* title() const override { return tr(Str::kHen); }
     uint32_t icon() const override { return icons::kSecurity; }
     std::string subtitle(App& app) override;
 
     uint32_t fabIcon() const override { return icons::kRefresh; }
-    const char* fabLabel() const override { return "Probe"; }
+    const char* fabLabel() const override { return tr(Str::kFabProbe); }
     void onFab(App& app) override;
 
     void onEnter(App& app) override;
@@ -28,9 +28,9 @@ public:
     void onConfirm(App& app, int focusId) override;
 
     std::vector<ui::Hint> hints() const override {
-        return {{ui::PadGlyph::Cross, "Open"},
-                {ui::PadGlyph::Triangle, "Probe again"},
-                {ui::PadGlyph::L1, "Screens"}};
+        return {{ui::PadGlyph::Cross, tr(Str::kHintOpen)},
+                {ui::PadGlyph::Triangle, tr(Str::kHintProbe)},
+                {ui::PadGlyph::L1, tr(Str::kHintScreens)}};
     }
 
 private:

@@ -20,12 +20,12 @@ namespace rawui {
 
 class CheatsScreen : public Screen {
 public:
-    const char* title() const override { return "Cheats & patches"; }
+    const char* title() const override { return tr(Str::kCheats); }
     uint32_t icon() const override { return icons::kExtension; }
     std::string subtitle(App& app) override;
 
     uint32_t fabIcon() const override { return icons::kRefresh; }
-    const char* fabLabel() const override { return "Refresh"; }
+    const char* fabLabel() const override { return tr(Str::kHintRefresh); }
     void onFab(App& app) override { refresh(app); }
 
     void onEnter(App& app) override;
@@ -35,10 +35,10 @@ public:
     bool onAdjust(App& app, int focusId, int delta) override;
 
     std::vector<ui::Hint> hints() const override {
-        return {{ui::PadGlyph::Cross, "Toggle"},
-                {ui::PadGlyph::Square, "Delete"},
-                {ui::PadGlyph::Triangle, "Refresh"},
-                {ui::PadGlyph::L1, "Screens"}};
+        return {{ui::PadGlyph::Cross, tr(Str::kHintToggle)},
+                {ui::PadGlyph::Square, tr(Str::kHintDelete)},
+                {ui::PadGlyph::Triangle, tr(Str::kHintRefresh)},
+                {ui::PadGlyph::L1, tr(Str::kHintScreens)}};
     }
 
 private:
@@ -58,7 +58,6 @@ private:
     std::vector<FileEntry> entries_;
     std::vector<std::string> sources_;
     ListScroll scroll_;
-    bool ok_ = true;
     int focusIndex_ = 0;
 };
 

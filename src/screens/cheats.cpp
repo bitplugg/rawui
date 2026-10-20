@@ -29,10 +29,14 @@ std::string stripDisabled(const std::string& name) {
 
 std::string CheatsScreen::subtitle(App& app) {
     const HenStatus& h = app.hen();
+    // Counts are built through trn() because Russian needs three forms
+    // (1 файл / 2 файла / 5 файлов) where English only needs two.
     if (mode_ == kCheats) {
-        return "Cheats · " + std::to_string(h.cheatCount) + " files";
+        return std::string(tr(Str::kCheatsCard)) + " · " + std::to_string(h.cheatCount) + " " +
+               trn(Str::kUnitFileOne, Str::kUnitFileFew, Str::kUnitFileMany, h.cheatCount);
     }
-    return "Patches · " + std::to_string(h.patchCount) + " files";
+    return std::string(tr(Str::kPatches)) + " · " + std::to_string(h.patchCount) + " " +
+           trn(Str::kUnitFileOne, Str::kUnitFileFew, Str::kUnitFileMany, h.patchCount);
 }
 
 void CheatsScreen::onEnter(App& app) {
@@ -101,7 +105,7 @@ void CheatsScreen::draw(App& app) {
     const float s = ctx.displayScale;
 
     // Segmented control.
-    const std::vector<std::string> seg = {"Cheats", "Patches"};
+    const std::vector<std::string> seg = {tr(Str::kCheatsCard), tr(Str::kPatches)};
     const float segH = kSegHeight * s;
     const Rect segR(area.x, area.y, minf(area.w, 420.0f * s), segH);
     ui::segmented(ctx, segR, seg, mode_ == kCheats ? 0 : 1);
@@ -110,13 +114,13 @@ void CheatsScreen::draw(App& app) {
     // Header row.
     const float listY = segR.bottom() + 16.0f * s;
     const Rect head(area.x, listY, area.w, 32.0f * s);
-    ui::drawText(ctx, "File", ctx.type().labelSmall,
+    ui::drawText(ctx, tr(Str::kColFile), ctx.type().labelSmall,
                  Rect(head.x + 60.0f * s, head.y, 400.0f * s, head.h), c.onSurfaceVariant,
                  ui::Align::Left, ui::VAlign::Middle);
-    ui::drawText(ctx, "Status", ctx.type().labelSmall,
+    ui::drawText(ctx, tr(Str::kColStatus), ctx.type().labelSmall,
                  Rect(head.right() - 240.0f * s, head.y, 220.0f * s, head.h), c.onSurfaceVariant,
                  ui::Align::Right, ui::VAlign::Middle);
-    ui::drawText(ctx, "Modified", ctx.type().labelSmall,
+    ui::drawText(ctx, tr(Str::kColModified), ctx.type().labelSmall,
                  Rect(head.right() - 60.0f * s, head.y, 200.0f * s, head.h), c.onSurfaceVariant,
                  ui::Align::Right, ui::VAlign::Middle);
 
@@ -125,13 +129,11 @@ void CheatsScreen::draw(App& app) {
     ctx.canvas->pushClip(rows);
 
     if (entries_.empty()) {
-        ui::drawText(ctx,
-                     mode_ == kCheats ? "No cheat JSON files found in GoldHEN/cheats"
-                                      : "No patch files found in GoldHEN/patches",
+        ui::drawText(ctx, mode_ == kCheats ? tr(Str::kNoCheatJson) : tr(Str::kNoPatchFiles),
                      ctx.type().bodyLarge, Rect(rows.x, rows.y + 30.0f * s, rows.w, 50.0f * s),
                      c.onSurfaceVariant, ui::Align::Left, ui::VAlign::Middle);
         if (!sources_.empty()) {
-            ui::drawText(ctx, "Looked in: " + sources_[0],
+            ui::drawText(ctx, trf(Str::kLookedIn, sources_[0].c_str()),
                          ctx.type().bodySmall, Rect(rows.x, rows.y + 80.0f * s, rows.w, 40.0f * s),
                          c.onSurfaceVariant.withAlphaF(0.7f), ui::Align::Left, ui::VAlign::Middle);
         }
@@ -151,7 +153,8 @@ void CheatsScreen::draw(App& app) {
         const Rect row(rows.x, y, rows.w - 8.0f * s, rowH - 6.0f * s);
 
         ui::listItem(ctx, row, icons::kExtension, stripDisabled(e.name),
-                     disabled ? "Disabled" : "Enabled", humanTime(e.modified), i == focused,
+                     disabled ? tr(Str::kDisabled) : tr(Str::kEnabled), humanTime(e.modified),
+                     i == focused,
                      ui::focusProximity(ctx, row, 90.0f * s), false,
                      disabled ? &c.onSurfaceVariant : nullptr);
 
@@ -190,10 +193,12 @@ void CheatsScreen::onConfirm(App& app, int focusId) {
     const std::string to = disabled ? enabledPath(e.path) : disabledPath(e.path);
 
     if (fs::rename(e.path, to)) {
-        app.toast(stripDisabled(e.name) + (disabled ? " enabled" : " disabled"), true);
+        app.toast(trf(disabled ? Str::kToggledOn : Str::kToggledOff,
+                       stripDisabled(e.name).c_str()),
+                  true);
         refresh(app);
     } else {
-        app.toast("Failed to toggle " + e.name, true);
+        app.toast(trf(Str::kToggleFailed, e.name.c_str()), true);
     }
 }
 
@@ -203,17 +208,21 @@ void CheatsScreen::onAlt(App& app, int focusId) {
     if (index < 0 || index >= static_cast<int>(entries_.size())) return;
 
     const FileEntry e = entries_[static_cast<size_t>(index)];
-    app.showConfirm("Delete " + stripDisabled(e.name) + "?", "This file will be removed.",
-                    "Delete",
-                    [this, &app, e] {
-                        if (fs::removeAll(e.path)) {
-                            app.toast("Deleted " + stripDisabled(e.name), true);
-                            refresh(app);
-                        } else {
-                            app.toast("Could not delete " + e.name, true);
-                        }
-                    },
-                    true);
+    // Each trf() result is copied into a temporary string before the next
+    // call overwrites the shared buffer, so chaining them like this is safe.
+    const std::string title = trf(Str::kDeleteConfirm, stripDisabled(e.name).c_str());
+
+    app.showConfirm(
+        title, tr(Str::kDeleteBodyFile), tr(Str::kDelete),
+        [this, &app, e] {
+            if (fs::removeAll(e.path)) {
+                app.toast(trf(Str::kDeleted, stripDisabled(e.name).c_str()), true);
+                refresh(app);
+            } else {
+                app.toast(trf(Str::kDeleteFailed, e.name.c_str()), true);
+            }
+        },
+        true);
 }
 
 }  // namespace rawui

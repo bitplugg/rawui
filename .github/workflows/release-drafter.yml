@@ -1,0 +1,28 @@
+name: release-drafter
+
+# Maintains a draft release that accumulates a changelog as PRs land on main.
+# It is a *preview*: the real release is published by release.yml when a tag
+# is pushed, which retires the draft first (see the "Publish release" job).
+#
+# PR titles are the changelog source, so pr-title.yml keeps them well formed.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  draft:
+    name: Update draft release
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Draft release notes
+        uses: release-drafter/release-drafter@v7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

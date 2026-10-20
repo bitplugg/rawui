@@ -49,6 +49,15 @@ uint64_t directorySize(const std::string& path, int maxEntries = 4096);
 // Writable roots worth showing in the file manager, in a sensible order.
 std::vector<std::string> mountPoints();
 
+// USB volumes that are actually mounted, in probe order (/mnt/usb0..7, then
+// the exFAT ports).  Used by theme import/export and settings backup.
+std::vector<std::string> usbRoots();
+
+// Whole-file helpers.  Reading is capped so a stray path (a /dev node, a
+// virtual file that reports a huge size) cannot exhaust memory.
+std::string readFile(const std::string& path, size_t maxBytes = 4u * 1024u * 1024u);
+bool writeFile(const std::string& path, const std::string& data);
+
 // True for "." and "..".
 bool isDotEntry(const char* name);
 

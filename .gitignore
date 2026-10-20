@@ -13,6 +13,7 @@ pkg/sce_module/
 # Downloaded assets (see tools/fetch-assets.sh)
 pkg/assets/fonts/*.ttf
 pkg/assets/fonts/*.txt
+pkg/assets/fonts/*.part
 
 # Editor / OS noise
 .DS_Store

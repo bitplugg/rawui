@@ -21,12 +21,12 @@ namespace rawui {
 
 class InstallScreen : public Screen {
 public:
-    const char* title() const override { return "Install packages"; }
+    const char* title() const override { return tr(Str::kInstall); }
     uint32_t icon() const override { return icons::kInstall; }
     std::string subtitle(App& app) override;
 
     uint32_t fabIcon() const override { return icons::kRefresh; }
-    const char* fabLabel() const override { return "Rescan"; }
+    const char* fabLabel() const override { return tr(Str::kHintRescan); }
     void onFab(App& app) override { scan(app); }
 
     void onEnter(App& app) override;
@@ -36,10 +36,10 @@ public:
     void onAlt(App& app, int focusId) override;
 
     std::vector<ui::Hint> hints() const override {
-        return {{ui::PadGlyph::Cross, "Install"},
-                {ui::PadGlyph::Square, "Details"},
-                {ui::PadGlyph::Circle, "Back"},
-                {ui::PadGlyph::L1, "Screens"}};
+        return {{ui::PadGlyph::Cross, tr(Str::kHintInstall)},
+                {ui::PadGlyph::Square, tr(Str::kHintDetails)},
+                {ui::PadGlyph::Circle, tr(Str::kHintBack)},
+                {ui::PadGlyph::L1, tr(Str::kHintScreens)}};
     }
 
 private:

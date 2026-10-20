@@ -20,12 +20,12 @@ namespace rawui {
 
 class FilesScreen : public Screen {
 public:
-    const char* title() const override { return "File manager"; }
+    const char* title() const override { return tr(Str::kFiles); }
     uint32_t icon() const override { return icons::kFolder; }
     std::string subtitle(App& app) override;
 
     uint32_t fabIcon() const override { return icons::kArrowUp; }
-    const char* fabLabel() const override { return "Up"; }
+    const char* fabLabel() const override { return tr(Str::kHintUp); }
     void onFab(App& app) override { goUp(app); }
 
     void onEnter(App& app) override;
@@ -35,10 +35,10 @@ public:
     bool onBack(App& app) override;
 
     std::vector<ui::Hint> hints() const override {
-        return {{ui::PadGlyph::Cross, "Open"},
-                {ui::PadGlyph::Square, "Delete"},
-                {ui::PadGlyph::Triangle, "Up"},
-                {ui::PadGlyph::Circle, "Back"}};
+        return {{ui::PadGlyph::Cross, tr(Str::kHintOpen)},
+                {ui::PadGlyph::Square, tr(Str::kHintDelete)},
+                {ui::PadGlyph::Triangle, tr(Str::kHintUp)},
+                {ui::PadGlyph::Circle, tr(Str::kHintBack)}};
     }
 
 private:

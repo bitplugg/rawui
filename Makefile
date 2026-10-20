@@ -36,15 +36,32 @@ LIBMODULES  := libc libSceFios2
 # ------------------------------------------------------------------ flags ---
 # _GNU_SOURCE is required: libc++'s threading support calls nanosleep(), which
 # the toolchain's musl headers only expose when a feature-test macro is set.
+#
+# VERSION is what lands in param.sfo (NN.NN, firmware-facing).  APP_VERSION is
+# what the About row shows the player, and comes from the release tag; CI passes
+# it through so the shell and the GitHub Release can never disagree.
+APP_VERSION  ?= dev
 EXTRAFLAGS  := -std=c++17 -O2 -Wall -Wno-unused-parameter -Wno-unused-variable \
-               -D_GNU_SOURCE -DRAWUI_TITLE_ID=\"$(TITLE_ID)\"
+               -D_GNU_SOURCE -DRAWUI_TITLE_ID=\"$(TITLE_ID)\" \
+               -DRAWUI_VERSION=\"$(APP_VERSION)\"
 
 # ------------------------------------------------------------- toolchain ----
 TOOLCHAIN   := $(OO_PS4_TOOLCHAIN)
 
+# Host-only targets (unit tests) run against the host compiler and only cover
+# pure code, so they must work on a plain machine with no PS4 toolchain around.
+HOST_ONLY_TARGETS := test test-port test-all test-i18n
+ifneq ($(MAKECMDGOALS),)
+  ifeq ($(filter-out $(HOST_ONLY_TARGETS),$(MAKECMDGOALS)),)
+    HOST_ONLY := 1
+  endif
+endif
+
+ifndef HOST_ONLY
 ifeq ($(TOOLCHAIN),)
 $(error OO_PS4_TOOLCHAIN is not set. Use `tools/docker-build.sh`, or point \
         OO_PS4_TOOLCHAIN at an extracted OpenOrbis-PS4-Toolchain release.)
+endif
 endif
 
 UNAME_S     := $(shell uname -s)
@@ -108,9 +125,38 @@ PKG_FILES   := eboot.bin sce_sys/about/right.sprx sce_sys/param.sfo \
                sce_sys/icon0.png $(MODULES) $(ASSETS)
 
 # ----------------------------------------------------------------- targets ---
-.PHONY: all clean distclean assets info
+.PHONY: all clean distclean assets info test test-port test-all test-i18n
 
 all: $(DISTDIR)/$(CONTENT_ID).pkg
+
+# ------------------------------------------------------------- host tests ---
+# The colour engine and the string table are pure code, so their tests build
+# with the host compiler and deliberately do not touch the PS4 toolchain
+# (`make test` works bare).
+TESTBIN := $(BUILDDIR)/color_test
+I18NTESTBIN := $(BUILDDIR)/i18n_test
+
+test: $(TESTBIN) $(I18NTESTBIN)
+	@$(TESTBIN)
+	@$(I18NTESTBIN)
+
+$(TESTBIN): tests/color_test.cpp src/md3/color.cpp src/md3/color.hpp src/core/math.hpp
+	@mkdir -p $(BUILDDIR)
+	$(CXX) -std=c++17 -O2 -Wall -I$(SRCDIR) -o $@ tests/color_test.cpp src/md3/color.cpp
+
+$(I18NTESTBIN): tests/i18n_test.cpp src/core/i18n.cpp src/core/i18n.hpp
+	@mkdir -p $(BUILDDIR)
+	$(CXX) -std=c++17 -O2 -Wall -I$(SRCDIR) -o $@ tests/i18n_test.cpp src/core/i18n.cpp
+
+test-i18n: $(I18NTESTBIN)
+	@$(I18NTESTBIN)
+
+# Guards the JS copy of the engine in docs/themes.html against drifting away
+# from src/md3/color.cpp.
+test-port:
+	@bash tests/port_sync.sh
+
+test-all: test test-port
 
 assets:
 	bash tools/fetch-assets.sh

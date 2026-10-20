@@ -23,8 +23,9 @@ public:
     void onConfirm(App& app, int focusId) override;
 
     std::vector<ui::Hint> hints() const override {
-        return {{ui::PadGlyph::Cross, "Open"},{ui::PadGlyph::Dpad, "Navigate"},
-                {ui::PadGlyph::L1, "Screens"}};
+        return {{ui::PadGlyph::Cross, tr(Str::kHintOpen)},
+                {ui::PadGlyph::Dpad, tr(Str::kHintNavigate)},
+                {ui::PadGlyph::L1, tr(Str::kHintScreens)}};
     }
 
 private:
@@ -36,9 +37,11 @@ private:
         kTileBase = 10,
     };
 
+    // Text is stored as table ids rather than resolved strings so a language
+    // switch takes effect immediately instead of on the next launch.
     struct Tile {
-        const char* label;
-        const char* supporting;
+        Str label;
+        Str supporting;
         uint32_t icon;
         int screenIndex;
     };

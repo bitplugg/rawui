@@ -82,11 +82,11 @@ void drawTile(App& app, const Rect& rect, uint32_t icon, const std::string& titl
 
 const DashboardScreen::Tile* DashboardScreen::tiles(int& count) {
     static const Tile kTiles[] = {
-        {"Install packages", "Scan drives for .pkg files", icons::kInstall, 1},
-        {"File manager", "Browse and clean up /data", icons::kFolder, 2},
-        {"GoldHEN", "Payload status and servers", icons::kSecurity, 3},
-        {"Cheats", "Cheat files and patches", icons::kExtension, 4},
-        {"Settings", "Theme, text and storage", icons::kSettings, 5},
+        {Str::kInstall, Str::kTileInstallSub, icons::kInstall, 1},
+        {Str::kFiles, Str::kTileFilesSub, icons::kFolder, 2},
+        {Str::kHen, Str::kTileHenSub, icons::kSecurity, 3},
+        {Str::kCheats, Str::kTileCheatsSub, icons::kExtension, 4},
+        {Str::kSettings, Str::kTileSettingsSub, icons::kSettings, 5},
     };
     count = static_cast<int>(sizeof(kTiles) / sizeof(kTiles[0]));
     return kTiles;
@@ -94,9 +94,11 @@ const DashboardScreen::Tile* DashboardScreen::tiles(int& count) {
 
 std::string DashboardScreen::subtitle(App& app) {
     const HenStatus& h = app.hen();
-    std::string s = h.running ? "GoldHEN active" : "GoldHEN not detected";
-    s += h.running && h.portCount > 0 ? "  ·  " + std::to_string(h.portCount) + " servers"
-                                      : "";
+    std::string s = h.running ? tr(Str::kHenActive) : tr(Str::kHenMissing);
+    if (h.running && h.portCount > 0) {
+        s += "  ·  " + std::to_string(h.portCount) + " " +
+             trn(Str::kUnitServerOne, Str::kUnitServerFew, Str::kUnitServerMany, h.portCount);
+    }
     return s;
 }
 
@@ -118,17 +120,21 @@ void DashboardScreen::draw(App& app) {
     const HenStatus& h = app.hen();
     const fs::SpaceInfo& sp = app.dataSpace();
 
-    const std::string henValue = h.running ? "Active" : "Offline";
+    const std::string henValue = h.running ? tr(Str::kActiveShort) : tr(Str::kOffline);
     const Color henAccent = h.running ? c.success : c.warning;
 
     std::string storageValue = "--";
-    if (sp.valid) storageValue = humanSize(sp.free) + " free";
+    if (sp.valid) storageValue = humanSize(sp.free) + tr(Str::kFree);
 
     const std::string cheatValue =
-        h.cheatCount > 0 ? std::to_string(h.cheatCount) + " files" : "None found";
+        h.cheatCount > 0 ? std::to_string(h.cheatCount) + " " +
+                               trn(Str::kUnitFileOne, Str::kUnitFileFew, Str::kUnitFileMany,
+                                   h.cheatCount)
+                         : tr(Str::kNoneFound);
 
     const uint32_t cardIcons[3] = {icons::kSecurity, icons::kStorage, icons::kExtension};
-    const std::string cardLabels[3] = {"GoldHEN", "Internal storage", "Cheat files"};
+    const std::string cardLabels[3] = {tr(Str::kHen), tr(Str::kInternalStorage),
+                                       tr(Str::kCheatFiles)};
     const std::string cardValues[3] = {henValue, storageValue, cheatValue};
     const Color cardAccents[3] = {henAccent, c.tertiary, c.primary};
     const int cardIds[3] = {kCardHen, kCardStorage, kCardCheats};
@@ -145,7 +151,7 @@ void DashboardScreen::draw(App& app) {
     const Tile* list = tiles(tileCount);
 
     const float sectionY = area.y + heroH + L(app, 30.0f);
-    ui::drawText(ctx, "Quick actions", ctx.type().labelLarge,
+    ui::drawText(ctx, tr(Str::kQuickActions), ctx.type().labelLarge,
                  Rect(area.x, sectionY, area.w, L(app, 30.0f)), c.onSurfaceVariant,
                  ui::Align::Left, ui::VAlign::Middle);
 
@@ -159,7 +165,7 @@ void DashboardScreen::draw(App& app) {
                      gridY + static_cast<float>(row) * (tileH + gap), colW, tileH);
         if (r.bottom() > area.bottom()) break;
 
-        drawTile(app, r, list[i].icon, list[i].label, list[i].supporting);
+        drawTile(app, r, list[i].icon, tr(list[i].label), tr(list[i].supporting));
         ctx.focus->add(r, kTileBase + i, true, L(app, 26.0f));
     }
 }

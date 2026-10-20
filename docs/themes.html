@@ -124,7 +124,7 @@
     </div>
 
     <footer>
-      <p><a href="index.html">← Back to RAW UI</a></p>
+      <p><a href="index.html">← Back to RAW UI</a> · <a href="changelog.html">Changelog</a></p>
     </footer>
   </div>
 
@@ -209,43 +209,71 @@
     const tertiaryHue = (hue + 60) % 360;
     const k = 1 + contrast * 0.35;
 
-    const P = t => toneAt(t, hue, cP * k);
-    const S = t => toneAt(t, hue, cS * k);
-    const T = t => toneAt(t, tertiaryHue, cT * k);
-    const N = t => toneAt(t, hue, cN);
-    const NV = t => toneAt(t, hue, cNV);
-    const E = t => toneAt(t, 27, 60 * k);
+    // Contrast is first of all a *lightness* lever (see makeScheme in
+    // src/md3/color.cpp): chroma alone is clamped to the sRGB gamut limit, so
+    // it barely moves anything.  Tones are pushed away from mid grey; at
+    // contrast 0 this is an exact no-op.
+    const spread = 15;
+    const K = t => {
+      const dir = t > 50 ? 1 : (t < 50 ? -1 : (dark ? 1 : -1));
+      return clamp(t + dir * contrast * spread, 0, 100);
+    };
+
+    const P = t => toneAt(K(t), hue, cP * k);
+    const S = t => toneAt(K(t), hue, cS * k);
+    const T = t => toneAt(K(t), tertiaryHue, cT * k);
+    const N = t => toneAt(K(t), hue, cN);
+    const NV = t => toneAt(K(t), hue, cNV);
+    const E = t => toneAt(K(t), 27, 60 * k);
+    const ST = (t, h, c) => toneAt(K(t), h, c * k);
 
     const sc = {};
+    // Shared fixed tokens (Material: these are identical in both modes).
+    const FIXED = {
+      primaryFixed: P(90), primaryFixedDim: P(80),
+      onPrimaryFixed: P(10), onPrimaryFixedVariant: P(30),
+    };
     if (!dark) {
-      Object.assign(sc, {
+      Object.assign(sc, FIXED, {
         primary: P(40), onPrimary: P(100), primaryContainer: P(90), onPrimaryContainer: P(10),
         secondary: S(40), onSecondary: S(100), secondaryContainer: S(90), onSecondaryContainer: S(10),
         tertiary: T(40), onTertiary: T(100), tertiaryContainer: T(90), onTertiaryContainer: T(10),
         error: E(40), onError: E(100), errorContainer: E(90), onErrorContainer: E(10),
         surface: N(98), onSurface: N(10), surfaceVariant: NV(90), onSurfaceVariant: NV(30),
-        surfaceContainerLow: N(96), surfaceContainer: N(94), surfaceContainerHigh: N(92),
+        surfaceDim: N(87), surfaceBright: N(98),
+        surfaceContainerLowest: N(100), surfaceContainerLow: N(96),
+        surfaceContainer: N(94), surfaceContainerHigh: N(92), surfaceContainerHighest: N(90),
+        surfaceTint: P(40),
         outline: NV(50), outlineVariant: NV(80),
-        success: toneAt(45, 140, 45), onSuccess: toneAt(100, 140, 40),
-        successContainer: toneAt(90, 140, 30), onSuccessContainer: toneAt(20, 140, 35),
-        warning: toneAt(45, 80, 55), onWarning: toneAt(100, 80, 50),
-        warningContainer: toneAt(90, 80, 40), onWarningContainer: toneAt(20, 80, 45),
+        inverseSurface: N(20), inverseOnSurface: N(95), inversePrimary: P(80),
+        background: N(98), onBackground: N(10),
+        success: ST(45, 140, 45), onSuccess: ST(100, 140, 40),
+        successContainer: ST(90, 140, 30), onSuccessContainer: ST(20, 140, 35),
+        warning: ST(45, 80, 55), onWarning: ST(100, 80, 50),
+        warningContainer: ST(90, 80, 40), onWarningContainer: ST(20, 80, 45),
       });
     } else {
-      Object.assign(sc, {
+      Object.assign(sc, FIXED, {
         primary: P(80), onPrimary: P(20), primaryContainer: P(30), onPrimaryContainer: P(90),
         secondary: S(80), onSecondary: S(20), secondaryContainer: S(30), onSecondaryContainer: S(90),
         tertiary: T(80), onTertiary: T(20), tertiaryContainer: T(30), onTertiaryContainer: T(90),
         error: E(80), onError: E(20), errorContainer: E(30), onErrorContainer: E(90),
         surface: N(6), onSurface: N(90), surfaceVariant: NV(30), onSurfaceVariant: NV(80),
-        surfaceContainerLow: N(10), surfaceContainer: N(12), surfaceContainerHigh: N(17),
+        surfaceDim: N(6), surfaceBright: N(24),
+        surfaceContainerLowest: N(4), surfaceContainerLow: N(10),
+        surfaceContainer: N(12), surfaceContainerHigh: N(17), surfaceContainerHighest: N(22),
+        surfaceTint: P(80),
         outline: NV(60), outlineVariant: NV(30),
-        success: toneAt(80, 140, 40), onSuccess: toneAt(20, 140, 30),
-        successContainer: toneAt(30, 140, 35), onSuccessContainer: toneAt(90, 140, 25),
-        warning: toneAt(80, 80, 50), onWarning: toneAt(20, 80, 40),
-        warningContainer: toneAt(30, 80, 45), onWarningContainer: toneAt(90, 80, 35),
+        inverseSurface: N(90), inverseOnSurface: N(20), inversePrimary: P(40),
+        background: N(6), onBackground: N(90),
+        success: ST(80, 140, 40), onSuccess: ST(20, 140, 30),
+        successContainer: ST(30, 140, 35), onSuccessContainer: ST(90, 140, 25),
+        warning: ST(80, 80, 50), onWarning: ST(20, 80, 40),
+        warningContainer: ST(30, 80, 45), onWarningContainer: ST(90, 80, 35),
       });
     }
+    sc.scrim = { r: 0, g: 0, b: 0 };
+    sc.shadow = { r: 0, g: 0, b: 0 };
     return sc;
   }
 

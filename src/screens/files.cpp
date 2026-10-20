@@ -11,7 +11,7 @@ constexpr float kRowHeight = 78.0f;
 
 std::string FilesScreen::subtitle(App& app) {
     (void)app;
-    if (!ok_) return "This folder could not be read";
+    if (!ok_) return tr(Str::kFilesUnreadable);
     return cwd_;
 }
 
@@ -72,7 +72,11 @@ void FilesScreen::draw(App& app) {
     ui::drawText(ctx, cwd_, ctx.type().titleMedium,
                  Rect(pathBar.x + 36.0f * s, pathBar.y, area.w * 0.6f, pathBar.h),
                  c.onSurface, ui::Align::Left, ui::VAlign::Middle);
-    ui::drawText(ctx, std::to_string(entries_.size()) + " items", ctx.type().bodySmall,
+    const int itemCount = static_cast<int>(entries_.size());
+    ui::drawText(ctx, std::to_string(itemCount) + " " +
+                          trn(Str::kUnitItemOne, Str::kUnitItemFew, Str::kUnitItemMany,
+                              itemCount),
+                 ctx.type().bodySmall,
                  Rect(pathBar.right() - 200.0f * s, pathBar.y, 200.0f * s, pathBar.h),
                  c.onSurfaceVariant, ui::Align::Right, ui::VAlign::Middle);
 
@@ -100,13 +104,13 @@ void FilesScreen::draw(App& app) {
 
     // Column headings.
     const Rect head(list.x, list.y, list.w, 32.0f * s);
-    ui::drawText(ctx, "Name", ctx.type().labelSmall,
+    ui::drawText(ctx, tr(Str::kColName), ctx.type().labelSmall,
                  Rect(head.x + 60.0f * s, head.y, 400.0f * s, head.h), c.onSurfaceVariant,
                  ui::Align::Left, ui::VAlign::Middle);
-    ui::drawText(ctx, "Size", ctx.type().labelSmall,
+    ui::drawText(ctx, tr(Str::kColSize), ctx.type().labelSmall,
                  Rect(head.right() - 320.0f * s, head.y, 140.0f * s, head.h),
                  c.onSurfaceVariant, ui::Align::Right, ui::VAlign::Middle);
-    ui::drawText(ctx, "Modified", ctx.type().labelSmall,
+    ui::drawText(ctx, tr(Str::kColModified), ctx.type().labelSmall,
                  Rect(head.right() - 170.0f * s, head.y, 170.0f * s, head.h),
                  c.onSurfaceVariant, ui::Align::Right, ui::VAlign::Middle);
 
@@ -115,11 +119,11 @@ void FilesScreen::draw(App& app) {
     ctx.canvas->pushClip(rows);
 
     if (!ok_) {
-        ui::drawText(ctx, "Permission denied, or the folder no longer exists.",
+        ui::drawText(ctx, tr(Str::kPermDenied),
                      ctx.type().bodyLarge, Rect(rows.x, rows.y + 30.0f * s, rows.w, 50.0f * s),
                      c.error, ui::Align::Left, ui::VAlign::Middle);
     } else if (entries_.empty()) {
-        ui::drawText(ctx, "This folder is empty.", ctx.type().bodyLarge,
+        ui::drawText(ctx, tr(Str::kFolderEmpty), ctx.type().bodyLarge,
                      Rect(rows.x, rows.y + 30.0f * s, rows.w, 50.0f * s), c.onSurfaceVariant,
                      ui::Align::Left, ui::VAlign::Middle);
     }
@@ -135,7 +139,7 @@ void FilesScreen::draw(App& app) {
         const FileEntry& e = entries_[static_cast<size_t>(i)];
         const Rect row(rows.x, y, rows.w - 10.0f * s, rowH - 6.0f * s);
 
-        const std::string sizeText = e.isDir ? "Folder" : humanSize(e.size);
+        const std::string sizeText = e.isDir ? tr(Str::kFolder) : humanSize(e.size);
         ui::listItem(ctx, row, iconForPath(e.path, e.isDir), e.name, std::string(),
                      sizeText + "     " + humanTime(e.modified), i == focused,
                      ui::focusProximity(ctx, row, 90.0f * s), false,
@@ -184,19 +188,23 @@ void FilesScreen::onAlt(App& app, int focusId) {
 
     const FileEntry entry = entries_[static_cast<size_t>(index)];
 
-    app.showConfirm("Delete " + entry.name + "?",
-                    entry.isDir ? "The folder and everything inside it will be deleted."
-                                : humanSize(entry.size) + " will be freed.",
-                    "Delete",
-                    [this, &app, entry] {
-                        if (fs::removeAll(entry.path)) {
-                            app.toast("Deleted " + entry.name, true);
-                            refresh(app);
-                        } else {
-                            app.toast("Could not delete " + entry.name, true);
-                        }
-                    },
-                    true);
+    // Each trf() copies into a temporary before the next one runs, so building
+    // the three strings back to back is safe.
+    const std::string title = trf(Str::kDeleteConfirm, entry.name.c_str());
+    const std::string body = entry.isDir ? tr(Str::kDeleteBodyDir)
+                                         : trf(Str::kFreed, humanSize(entry.size).c_str());
+
+    app.showConfirm(
+        title, body, tr(Str::kDelete),
+        [this, &app, entry] {
+            if (fs::removeAll(entry.path)) {
+                app.toast(trf(Str::kDeleted, entry.name.c_str()), true);
+                refresh(app);
+            } else {
+                app.toast(trf(Str::kDeleteFailed, entry.name.c_str()), true);
+            }
+        },
+        true);
 }
 
 }  // namespace rawui

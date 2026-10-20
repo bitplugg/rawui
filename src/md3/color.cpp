@@ -169,13 +169,36 @@ Scheme makeScheme(const Color& seed, bool dark, const SchemeOptions& options) {
 
     const float k = 1.0f + options.contrast * 0.35f;
 
-    const auto P = [&](float t) { return toneAt(t, hue, cPrimary * k); };
-    const auto S = [&](float t) { return toneAt(t, hue, cSecondary * k); };
-    const auto T = [&](float t) { return toneAt(t, tertiaryHue, cTertiary * k); };
-    const auto N = [&](float t) { return toneAt(t, hue, cNeutral); };
-    const auto NV = [&](float t) { return toneAt(t, hue, cNeutralVariant); };
+    // Contrast is first of all a *lightness* lever.  Scaling chroma alone does
+    // almost nothing: at most tonal steps the seed chroma already sits at the
+    // sRGB gamut boundary, so toneAt() clamps it straight back.  Pushing the
+    // tones away from mid grey moves foreground and background apart, which is
+    // what the Material contrast tokens actually do.  At contrast 0 this is an
+    // exact no-op, so the default palette is untouched.
+    const float cs = options.contrast;
+    const float spread = 15.0f;
+    const auto K = [&](float t) {
+        float dir;
+        if (t > 50.0f) {
+            dir = 1.0f;
+        } else if (t < 50.0f) {
+            dir = -1.0f;
+        } else {
+            dir = dark ? 1.0f : -1.0f;  // ambiguous midpoint: follow the surface
+        }
+        return clampf(t + dir * cs * spread, 0.0f, 100.0f);
+    };
+
+    const auto P = [&](float t) { return toneAt(K(t), hue, cPrimary * k); };
+    const auto S = [&](float t) { return toneAt(K(t), hue, cSecondary * k); };
+    const auto T = [&](float t) { return toneAt(K(t), tertiaryHue, cTertiary * k); };
+    const auto N = [&](float t) { return toneAt(K(t), hue, cNeutral); };
+    const auto NV = [&](float t) { return toneAt(K(t), hue, cNeutralVariant); };
     // Error is always the Material red family, re-tuned for the theme's contrast.
-    const auto E = [&](float t) { return toneAt(t, 27.0f, 60.0f * k); };
+    const auto E = [&](float t) { return toneAt(K(t), 27.0f, 60.0f * k); };
+    // Status colours used fixed tones and ignored contrast entirely; they form
+    // container/on-container pairs, so they take part in the same push.
+    const auto ST = [&](float t, float h, float c) { return toneAt(K(t), h, c * k); };
 
     Scheme s;
 
@@ -227,15 +250,15 @@ Scheme makeScheme(const Color& seed, bool dark, const SchemeOptions& options) {
         s.background = N(98);
         s.onBackground = N(10);
 
-        s.success = toneAt(45.0f, 140.0f, 45.0f);
-        s.onSuccess = toneAt(100.0f, 140.0f, 40.0f);
-        s.successContainer = toneAt(90.0f, 140.0f, 30.0f);
-        s.onSuccessContainer = toneAt(20.0f, 140.0f, 35.0f);
+        s.success = ST(45.0f, 140.0f, 45.0f);
+        s.onSuccess = ST(100.0f, 140.0f, 40.0f);
+        s.successContainer = ST(90.0f, 140.0f, 30.0f);
+        s.onSuccessContainer = ST(20.0f, 140.0f, 35.0f);
 
-        s.warning = toneAt(45.0f, 80.0f, 55.0f);
-        s.onWarning = toneAt(100.0f, 80.0f, 50.0f);
-        s.warningContainer = toneAt(90.0f, 80.0f, 40.0f);
-        s.onWarningContainer = toneAt(20.0f, 80.0f, 45.0f);
+        s.warning = ST(45.0f, 80.0f, 55.0f);
+        s.onWarning = ST(100.0f, 80.0f, 50.0f);
+        s.warningContainer = ST(90.0f, 80.0f, 40.0f);
+        s.onWarningContainer = ST(20.0f, 80.0f, 45.0f);
     } else {
         s.primary = P(80);
         s.onPrimary = P(20);
@@ -284,15 +307,15 @@ Scheme makeScheme(const Color& seed, bool dark, const SchemeOptions& options) {
         s.background = N(6);
         s.onBackground = N(90);
 
-        s.success = toneAt(80.0f, 140.0f, 40.0f);
-        s.onSuccess = toneAt(20.0f, 140.0f, 30.0f);
-        s.successContainer = toneAt(30.0f, 140.0f, 35.0f);
-        s.onSuccessContainer = toneAt(90.0f, 140.0f, 25.0f);
+        s.success = ST(80.0f, 140.0f, 40.0f);
+        s.onSuccess = ST(20.0f, 140.0f, 30.0f);
+        s.successContainer = ST(30.0f, 140.0f, 35.0f);
+        s.onSuccessContainer = ST(90.0f, 140.0f, 25.0f);
 
-        s.warning = toneAt(80.0f, 80.0f, 50.0f);
-        s.onWarning = toneAt(20.0f, 80.0f, 40.0f);
-        s.warningContainer = toneAt(30.0f, 80.0f, 45.0f);
-        s.onWarningContainer = toneAt(90.0f, 80.0f, 35.0f);
+        s.warning = ST(80.0f, 80.0f, 50.0f);
+        s.onWarning = ST(20.0f, 80.0f, 40.0f);
+        s.warningContainer = ST(30.0f, 80.0f, 45.0f);
+        s.onWarningContainer = ST(90.0f, 80.0f, 35.0f);
     }
 
     s.scrim = Color(0, 0, 0, 255);

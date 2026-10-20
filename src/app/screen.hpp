@@ -9,6 +9,7 @@
 
 #include <string>
 
+#include "core/i18n.hpp"
 #include "core/math.hpp"
 #include "ui/ui.hpp"
 
@@ -52,7 +53,7 @@ public:
 
     // Hints shown along the bottom of the shell.
     virtual std::vector<ui::Hint> hints() const {
-        return {{ui::PadGlyph::Cross, "Select"}, {ui::PadGlyph::Circle, "Back"}};
+        return {{ui::PadGlyph::Cross, tr(Str::kHintSelect)}, {ui::PadGlyph::Circle, tr(Str::kHintBack)}};
     }
 };
 

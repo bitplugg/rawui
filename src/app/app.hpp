@@ -147,6 +147,11 @@ private:
     float henAutoTimer_ = 0.0f;
     float layoutScale_ = 1.0f;
 
+    // Cached result of nightWindowActive(); applyConfig() refreshes it and
+    // tick() only wakes up when it actually flips.
+    bool nightActive_ = false;
+    float nightTimer_ = 0.0f;
+
     bool running_ = false;
     float time_ = 0.0f;
 };

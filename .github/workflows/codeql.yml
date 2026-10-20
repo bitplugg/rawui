@@ -1,0 +1,52 @@
+name: codeql
+
+# Static analysis for both halves of the project:
+#   * C/C++      - the PS4 application (buildless mode: the OpenOrbis toolchain
+#                  cross-compiles for FreeBSD, so CodeQL reads the sources
+#                  directly instead of tracing a build)
+#   * JavaScript - the inline engine in docs/themes.html
+#
+# Alerts land in the repo's "Security" tab and on pull requests.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '27 4 * * 1'   # weekly, off-peak
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    permissions:
+      security-events: write   # upload SARIF results
+      packages: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: cpp
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:${{ matrix.language }}'

@@ -1,0 +1,23 @@
+name: labeler
+
+# Labels PRs from the paths they touch, which keeps triage cheap in a repo
+# that mixes a C++ console app, a static site and CI workflows.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    name: Apply path labels
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Label the PR
+        uses: actions/labeler@v7
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          sync-labels: true

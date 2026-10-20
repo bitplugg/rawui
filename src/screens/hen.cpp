@@ -17,11 +17,11 @@ Color stateColor(const Scheme& c, bool ok) { return ok ? c.success : c.onSurface
 std::string HenScreen::subtitle(App& app) {
     const HenStatus& h = app.hen();
     if (h.running) {
-        return "Payload detected" +
+        return std::string(tr(Str::kPayloadDetected)) +
                (h.version.empty() ? std::string() : "  ·  " + h.version);
     }
-    return h.payloadDirPresent ? "Payload folder found, no servers answering"
-                               : "Payload not found";
+    if (h.payloadDirPresent) return tr(Str::kPayloadFolder);
+    return tr(Str::kPayloadMissing);
 }
 
 void HenScreen::onEnter(App& app) {
@@ -33,7 +33,7 @@ void HenScreen::onEnter(App& app) {
 void HenScreen::onFab(App& app) {
     app.refreshHen();
     lastProbe_ = app.time();
-    app.toast("Probing GoldHEN ports...");
+    app.toast(tr(Str::kProbingPorts));
 }
 
 void HenScreen::draw(App& app) {
@@ -60,24 +60,23 @@ void HenScreen::draw(App& app) {
     ctx.canvas->fillCircle(card.x + 40.0f * s, card.cy(), (h.running ? 11.0f : 8.0f) * s,
                            dot.withAlphaF(h.running ? (0.55f + 0.45f * pulse) : 1.0f));
 
-    ui::drawText(ctx, h.running ? "GoldHEN is running" : "GoldHEN is not answering",
+    ui::drawText(ctx, h.running ? tr(Str::kHenRunning) : tr(Str::kHenSilent),
                  ctx.type().headlineSmall,
                  Rect(card.x + 70.0f * s, card.y + 26.0f * s, card.w - 90.0f * s, 40.0f * s),
                  c.onSurface, ui::Align::Left, ui::VAlign::Middle);
-    ui::drawText(ctx, h.payloadPath.empty() ? "No payload directory at /data/GoldHEN"
-                                            : h.payloadPath,
+    ui::drawText(ctx, h.payloadPath.empty() ? tr(Str::kNoPayloadDir) : h.payloadPath,
                  ctx.type().bodyMedium,
                  Rect(card.x + 70.0f * s, card.y + 70.0f * s, card.w - 90.0f * s, 28.0f * s),
                  c.onSurfaceVariant, ui::Align::Left, ui::VAlign::Middle);
-    ui::drawText(ctx, std::to_string(h.portCount) + " of " +
-                          std::to_string(h.servers.size()) + " services listening",
+    ui::drawText(ctx, trf(Str::kServicesLine, h.portCount,
+                          static_cast<int>(h.servers.size())),
                  ctx.type().bodySmall,
                  Rect(card.x + 70.0f * s, card.y + 100.0f * s, card.w - 90.0f * s, 26.0f * s),
                  accent, ui::Align::Left, ui::VAlign::Middle);
 
     // --- servers ------------------------------------------------------------
     float y = card.bottom() + 24.0f * s;
-    ui::drawText(ctx, "Services", ctx.type().labelLarge,
+    ui::drawText(ctx, tr(Str::kServices), ctx.type().labelLarge,
                  Rect(area.x, y, area.w, 28.0f * s), c.onSurfaceVariant, ui::Align::Left,
                  ui::VAlign::Middle);
     y += 36.0f * s;
@@ -99,7 +98,8 @@ void HenScreen::draw(App& app) {
 
         char addr[64];
         std::snprintf(addr, sizeof(addr), "%s:%d", srv.host, srv.port);
-        ui::drawText(ctx, srv.listening ? "listening" : "closed", ctx.type().bodySmall,
+        ui::drawText(ctx, srv.listening ? tr(Str::kListening) : tr(Str::kClosed),
+                     ctx.type().bodySmall,
                      Rect(row.right() - 260.0f * s, row.cy() - 13.0f * s, 240.0f * s,
                           26.0f * s),
                      dotColor, ui::Align::Right, ui::VAlign::Middle);
@@ -118,11 +118,10 @@ void HenScreen::draw(App& app) {
     ui::paintSurface(ctx, link, 20.0f * s, 0, c.surfaceContainerLow, Color(0, 0, 0, 0));
     ui::drawIcon(ctx, icons::kExtension, 30.0f * s,
                  Vec2(link.x + 40.0f * s, link.cy()), c.primary, true);
-    ui::drawText(ctx, "Cheats and patches", ctx.type().titleMedium,
+    ui::drawText(ctx, tr(Str::kCheatsAndPatches), ctx.type().titleMedium,
                  Rect(link.x + 76.0f * s, link.y + 16.0f * s, link.w * 0.6f, 28.0f * s),
                  c.onSurface, ui::Align::Left, ui::VAlign::Middle);
-    ui::drawText(ctx, std::to_string(h.cheatCount) + " cheat files  ·  " +
-                          std::to_string(h.patchCount) + " patch files",
+    ui::drawText(ctx, trf(Str::kCheatPatchCounts, h.cheatCount, h.patchCount),
                  ctx.type().bodySmall,
                  Rect(link.x + 76.0f * s, link.y + 46.0f * s, link.w * 0.6f, 26.0f * s),
                  c.onSurfaceVariant, ui::Align::Left, ui::VAlign::Middle);

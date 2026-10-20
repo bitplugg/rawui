@@ -1,0 +1,42 @@
+name: stale
+
+# Keeps the issue list honest.  Anything labelled "pinned" or "security" is
+# left alone, and PRs are never closed automatically - only marked stale, so a
+# half-finished change never disappears.
+
+on:
+  schedule:
+    - cron: '41 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    name: Mark and close stale items
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Run stale
+        uses: actions/stale@v11
+        with:
+          stale-issue-message: >
+            This issue has been automatically marked as stale because it has not
+            had recent activity. It will be closed in 14 days if no further
+            activity occurs. Comment to keep it open.
+          stale-pr-message: >
+            This pull request has been automatically marked as stale because it
+            has not had recent activity. It will not be closed - comment to keep
+            it alive.
+          close-issue-message: >
+            Closing as stale. Please reopen if this is still relevant.
+          stale-issue-label: 'stale'
+          stale-pr-label: 'stale'
+          days-before-issue-stale: 60
+          days-before-issue-close: 14
+          days-before-pr-stale: 90
+          days-before-pr-close: -1        # never auto-close PRs
+          exempt-issue-labels: 'pinned,security,bug'
+          exempt-pr-labels: 'pinned,security,work-in-progress'
+          operations-per-run: 60

@@ -1,45 +1,118 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RAW UI - PS4 Homebrew</title>
+  <script>
+    // Applied before first paint so the page never flashes the wrong theme.
+    try {
+      var saved = localStorage.getItem('rawui.theme');
+      document.documentElement.dataset.theme =
+        saved === 'light' || saved === 'dark' ? saved : 'dark';
+    } catch (e) {
+      document.documentElement.dataset.theme = 'dark';
+    }
+  </script>
   <style>
-    :root { color-scheme: dark; }
-    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; margin: 0; padding: 20px; background: radial-gradient(ellipse at top, #1a1a1a, #0f0f0f); color: #fff; line-height: 1.6; }
+    :root {
+      color-scheme: dark;
+      --bg: radial-gradient(ellipse at top, #1a1a1a, #0f0f0f);
+      --card-bg: linear-gradient(180deg, #1a1a1a 0%, #151515 100%);
+      --card-border: #333;
+      --card-shadow: 0 10px 30px -20px rgba(77, 157, 224, 0.5);
+      --text: #fff;
+      --text-dim: #a3a3a3;
+      --heading: #e5e5e5;
+      --accent: #4d9de0;
+      --btn-fg: #fff;
+      --btn-primary: #2d9cdb;
+      --btn-primary-hover: #1f8bcf;
+      --btn-secondary: #333;
+      --btn-secondary-hover: #444;
+      --code-bg: #222;
+      --border-soft: #2a2a2a;
+      --footer: #888;
+      --badge-bg: rgba(45, 156, 219, 0.16);
+      --badge-fg: #7cc7f5;
+    }
+
+    [data-theme="light"] {
+      color-scheme: light;
+      --bg: radial-gradient(ellipse at top, #f8fafd, #e9edf4);
+      --card-bg: linear-gradient(180deg, #ffffff 0%, #f3f5fa 100%);
+      --card-border: #d7dce5;
+      --card-shadow: 0 10px 30px -22px rgba(24, 66, 110, 0.45);
+      --text: #1b2029;
+      --text-dim: #5c6675;
+      --heading: #232a34;
+      --accent: #1673bd;
+      --btn-fg: #ffffff;
+      --btn-primary: #1f8bcf;
+      --btn-primary-hover: #166ea6;
+      --btn-secondary: #e4e8ef;
+      --btn-secondary-hover: #d6dbe4;
+      --code-bg: #eaeef4;
+      --border-soft: #e2e6ed;
+      --footer: #6b7482;
+      --badge-bg: rgba(31, 139, 207, 0.14);
+      --badge-fg: #1673bd;
+    }
+
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; margin: 0; padding: 20px; background: var(--bg); color: var(--text); line-height: 1.6; }
     .container { max-width: 860px; margin: 0 auto; }
-    h1 { color: #4d9de0; text-align: center; margin: 1rem 0 0.5rem; font-size: 2.5rem; letter-spacing: -0.025em; }
-    .subtitle { text-align: center; color: #a3a3a3; margin-bottom: 2rem; }
+    .topbar { display: flex; justify-content: flex-end; gap: 8px; max-width: 860px; margin: 0 auto; }
+    .theme-toggle { background: var(--btn-secondary); color: var(--text); border: 1px solid var(--card-border); border-radius: 20px; padding: 6px 14px; cursor: pointer; font-size: 0.9rem; transition: background 0.2s ease; }
+    .theme-toggle:hover { background: var(--btn-secondary-hover); }
+    h1 { color: var(--accent); text-align: center; margin: 1rem 0 0.5rem; font-size: 2.5rem; letter-spacing: -0.025em; }
+    .subtitle { text-align: center; color: var(--text-dim); margin-bottom: 2rem; }
+    .badge { display: inline-block; background: var(--badge-bg); color: var(--badge-fg); border: 1px solid var(--badge-fg); border-radius: 999px; padding: 2px 12px; font-size: 0.85rem; font-weight: 600; margin-left: 8px; vertical-align: middle; }
     .badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 1rem 0 2rem; }
     .badges img { height: 20px; }
-    .card { background: linear-gradient(180deg, #1a1a1a 0%, #151515 100%); border-radius: 12px; padding: 24px; margin: 20px 0; border: 1px solid #333; box-shadow: 0 10px 30px -20px rgba(77,157,224,0.5); }
-    h2 { margin-top: 0; color: #e5e5e5; }
+    .card { background: var(--card-bg); border-radius: 12px; padding: 24px; margin: 20px 0; border: 1px solid var(--card-border); box-shadow: var(--card-shadow); }
+    h2 { margin-top: 0; color: var(--heading); }
     .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
-    .btn { display: inline-flex; align-items: center; gap: 8px; background: #2d9cdb; color: #fff; padding: 12px 20px; text-decoration: none; border-radius: 10px; transition: transform 0.15s ease, background 0.2s ease; box-shadow: 0 4px 14px -10px #2d9cdb; }
-    .btn:hover { background: #1f8bcf; transform: translateY(-1px); }
-    .btn.secondary { background: #333; }
-    .btn.secondary:hover { background: #444; }
-    code { background: #222; padding: 2px 6px; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-    footer { text-align: center; margin-top: 40px; color: #888; }
-    a { color: #4d9de0; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; background: var(--btn-primary); color: var(--btn-fg); padding: 12px 20px; text-decoration: none; border-radius: 10px; transition: transform 0.15s ease, background 0.2s ease; box-shadow: 0 4px 14px -10px var(--btn-primary); }
+    .btn:hover { background: var(--btn-primary-hover); transform: translateY(-1px); }
+    .btn.secondary { background: var(--btn-secondary); color: var(--text); box-shadow: none; }
+    .btn.secondary:hover { background: var(--btn-secondary-hover); }
+    code { background: var(--code-bg); padding: 2px 6px; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    footer { text-align: center; margin-top: 40px; color: var(--footer); }
+    a { color: var(--accent); }
+    .whatsnew { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .whatsnew ul { margin: 8px 0 0; padding-left: 20px; }
+    .whatsnew li { color: var(--text-dim); }
   </style>
 </head>
 <body>
+  <div class="topbar">
+    <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle colour theme">🌙 Theme</button>
+  </div>
+
   <div class="container">
-    <h1>RAW UI</h1>
-    <p style="text-align: center;">Material Design 3 Expressive UI shell for PS4 (GoldHEN) - Firmware 13.52</p>
-    
+    <h1>RAW UI<span class="badge" id="version-badge" hidden></span></h1>
+    <p class="subtitle">Material Design 3 Expressive UI shell for PS4 (GoldHEN) - Firmware 13.52</p>
+
     <div class="card">
       <h2>📦 Download</h2>
       <p>Latest build is automatically published from GitHub Actions.</p>
       <div style="text-align: center;">
         <!-- Falls back to the pkg mirrored on Pages; the script below upgrades
              it to the GitHub release asset once releases exist. -->
-        <a href="RAWUI0001.pkg" class="download-btn" id="pkg-btn">Download RAWUI0001.pkg</a>
-        <a href="https://github.com/bitplugg/rawui/releases" class="gh-btn">View on GitHub Releases</a>
-        <a href="themes.html" class="gh-btn">🎨 Theme Generator</a>
+        <a href="RAWUI0001.pkg" class="btn" id="pkg-btn">Download RAWUI0001.pkg</a>
+        <a href="https://github.com/bitplugg/rawui/releases" class="btn secondary">View on GitHub Releases</a>
+        <a href="themes.html" class="btn secondary">🎨 Theme Generator</a>
+        <a href="changelog.html" class="btn secondary">📜 Changelog</a>
       </div>
-      <p><small>Or grab artifacts from <a href="https://github.com/bitplugg/rawui/actions" style="color: #4f9deb;">GitHub Actions</a>.</small></p>
+      <p><small>Or grab artifacts from <a href="https://github.com/bitplugg/rawui/actions">GitHub Actions</a>.</small></p>
+    </div>
+
+    <div class="card whatsnew">
+      <div style="flex: 1 1 320px;">
+        <h2>✨ What's new</h2>
+        <div id="whatsnew-body"><p style="color: var(--text-dim);">Loading the latest release…</p></div>
+      </div>
+      <a href="changelog.html" class="btn secondary">All releases →</a>
     </div>
 
     <div class="card">
@@ -79,7 +152,7 @@
         <li>File Manager (mount points: /data, /mnt, /usb, /user)</li>
         <li>GoldHEN status detection</li>
         <li>Cheats/Patches browser</li>
-        <li>Settings with theme customization</li>
+        <li>Settings with theme customization, contrast and motion controls</li>
       </ul>
     </div>
     <div class="card">
@@ -90,20 +163,111 @@
 
   <footer>
     <p>Built with ❤️ for the PS4 homebrew community</p>
-    <p><a href="https://github.com/bitplugg/rawui" style="color: #4f9deb;">View on GitHub</a></p>
+    <p><a href="https://github.com/bitplugg/rawui">View on GitHub</a></p>
   </footer>
 
   <script>
-    // Auto-update PKG link from latest release API
-    fetch('https://api.github.com/repos/bitplugg/rawui/releases/latest')
-      .then(r => r.json())
-      .then(data => {
-        const pkgAsset = (data.assets || []).find(a => a.name.endsWith('.pkg'));
-        if (pkgAsset) {
-          document.getElementById('pkg-btn').href = pkgAsset.browser_download_url;
+    // ---- colour theme ------------------------------------------------------
+    var themeBtn = document.getElementById('theme-toggle');
+    function paintToggle() {
+      var dark = document.documentElement.dataset.theme !== 'light';
+      themeBtn.textContent = dark ? '🌙 Theme' : '☀️ Theme';
+    }
+    themeBtn.addEventListener('click', function () {
+      var next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+      document.documentElement.dataset.theme = next;
+      try { localStorage.setItem('rawui.theme', next); } catch (e) {}
+      paintToggle();
+    });
+    paintToggle();
+
+    // ---- release info ------------------------------------------------------
+    // Unauthenticated GitHub API calls are rate limited per IP, and Pages is
+    // served from a shared egress, so the response is cached locally for a
+    // while instead of being fetched on every page load.
+    var RELEASE_TTL_MS = 10 * 60 * 1000;
+    function cachedLatestRelease() {
+      try {
+        var raw = localStorage.getItem('rawui.release');
+        if (!raw) return Promise.resolve(null);
+        var entry = JSON.parse(raw);
+        if (entry && entry.t && Date.now() - entry.t < RELEASE_TTL_MS) {
+          return Promise.resolve(entry.data);
         }
-      })
-      .catch(() => {});
+      } catch (e) {}
+      return null;
+    }
+
+    function fetchLatestRelease() {
+      var hit = cachedLatestRelease();
+      if (hit) return hit;
+      return fetch('https://api.github.com/repos/bitplugg/rawui/releases/latest')
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          try { localStorage.setItem('rawui.release', JSON.stringify({ t: Date.now(), data: data })); } catch (e) {}
+          return data;
+        })
+        .catch(function () { return null; });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
+    // Renders the release body's "## Что нового" / "What's new" section as a
+    // short bullet list; falls back to the first markdown headings.
+    function summarize(body) {
+      if (!body) return null;
+      var lines = String(body).split('\n');
+      var out = [];
+      var inSection = false;
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        if (/^##\s/i.test(line)) {
+          inSection = /что нового|what'?s new|ново/i.test(line);
+          continue;
+        }
+        if (!inSection) continue;
+        if (/^\s*[-*]\s+/.test(line)) out.push(line.replace(/^\s*[-*]\s+/, ''));
+        else if (/^###\s/i.test(line)) out.push(line.replace(/^###\s*/, ''));
+        if (out.length >= 4) break;
+      }
+      return out.length ? out : null;
+    }
+
+    fetchLatestRelease().then(function (data) {
+      var badge = document.getElementById('version-badge');
+      var btn = document.getElementById('pkg-btn');
+      var whatsnew = document.getElementById('whatsnew-body');
+      if (!data || !data.tag_name) {
+        if (whatsnew) whatsnew.innerHTML =
+          '<p style="color: var(--text-dim);">See the <a href="changelog.html">changelog</a> for past releases.</p>';
+        return;
+      }
+
+      badge.textContent = data.tag_name;
+      badge.hidden = false;
+      document.title = 'RAW UI ' + data.tag_name + ' - PS4 Homebrew';
+
+      var pkgAsset = (data.assets || []).filter(function (a) { return /\.pkg$/i.test(a.name); })[0];
+      if (pkgAsset) btn.href = pkgAsset.browser_download_url;
+
+      var items = summarize(data.body);
+      if (items) {
+        whatsnew.innerHTML = '<ul>' + items.map(function (t) {
+          return '<li>' + escapeHtml(t) + '</li>';
+        }).join('') + '</ul>' +
+          '<p style="color: var(--text-dim); font-size: 0.9rem;">Released ' +
+          escapeHtml(String(data.published_at || '').slice(0, 10)) + ' · ' +
+          '<a href="changelog.html">details</a></p>';
+      } else {
+        whatsnew.innerHTML =
+          '<p style="color: var(--text-dim);">' + escapeHtml(data.name || data.tag_name) +
+          ' - see the <a href="changelog.html">changelog</a>.</p>';
+      }
+    });
   </script>
 </body>
 </html>

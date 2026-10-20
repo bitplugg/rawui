@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <functional>
 
 #include <SDL2/SDL.h>
@@ -176,9 +177,18 @@ void App::shutdown() {
 
 // ---------------------------------------------------------------------------
 void App::applyConfig(bool animate) {
+    // Language first: the strings resolved below (and by every screen drawn
+    // after this call) come from the table selected here.
+    setLang(config_.lang);
+
+    // Night mode overrides the saved dark flag inside its window.  The
+    // preference itself is left untouched, so the toggle does not snap on at
+    // 08:00 and refuse to go back.
+    nightActive_ = nightWindowActive(config_, std::time(nullptr));
+
     ThemeConfig tc;
     tc.seed = Color::fromHex(config_.seedRgb);
-    tc.dark = config_.dark;
+    tc.dark = config_.dark || nightActive_;
     tc.vibrant = config_.vibrant;
     tc.contrast = clampf(config_.contrast, -0.3f, 0.3f);
     tc.typeScale = clampf(config_.typeScale, 0.8f, 1.4f);
@@ -333,6 +343,16 @@ void App::tick(float dt) {
         refreshHen();
     }
 
+    // Night mode only changes once a minute at the outside, so re-evaluating
+    // it every frame would be pure waste; 30s is imperceptible and cheap.
+    nightTimer_ -= dt;
+    if (nightTimer_ <= 0.0f) {
+        nightTimer_ = 30.0f;
+        if (nightWindowActive(config_, std::time(nullptr)) != nightActive_) {
+            applyConfig(true);
+        }
+    }
+
     if (transitioning_) {
         transition_.step(dt);
         const float v = transition_.value();
@@ -470,7 +490,7 @@ void App::handleGlobalInput() {
         config_.dark = !config_.dark;
         applyConfig(true);
         saveConfig();
-        toast(config_.dark ? "Dark theme" : "Light theme");
+        toast(config_.dark ? tr(Str::kDark) : tr(Str::kLight));
     }
 
     if (input_.pressed(Btn::Prev) && screenCount() > 1) {
@@ -520,7 +540,8 @@ void App::handleGlobalInput() {
             if (currentScreen_ != 0) {
                 navigateTo(0);
             } else {
-                showConfirm("Exit RAW UI", "Return to the PS4 menu?", "Exit", [this] { quit(); },
+                showConfirm(tr(Str::kExitTitle), tr(Str::kExitBody), tr(Str::kExit),
+                            [this] { quit(); },
                             true);
             }
         }
@@ -588,7 +609,7 @@ void App::drawRail() {
                 c.outlineVariant);
 
     std::string storage = "Storage unavailable";
-    if (dataSpace_.valid) storage = humanSize(dataSpace_.free) + " free";
+    if (dataSpace_.valid) storage = humanSize(dataSpace_.free) + tr(Str::kFree);
     ui::drawText(ctx_, storage, theme_.type.bodySmall,
                  Rect(card.x + inner, card.y + L(78.0f), card.w - inner * 2.0f, L(22.0f)),
                  c.onSurfaceVariant, ui::Align::Left, ui::VAlign::Middle);
@@ -632,14 +653,14 @@ void App::drawHeader() {
         x -= L(12.0f);
     };
 
-    chip(icons::kStorage, dataSpace_.valid ? humanSize(dataSpace_.free) + " free" : "—",
+    chip(icons::kStorage, dataSpace_.valid ? humanSize(dataSpace_.free) + tr(Str::kFree) : "—",
          c.onSurfaceVariant, c.surfaceContainerHigh);
 
     if (hen_.running) {
         chip(icons::kSecurity, "HEN " + (hen_.version.empty() ? std::string("on") : hen_.version),
              c.onSuccessContainer, c.successContainer);
     } else {
-        chip(icons::kSecurity, "No HEN", c.onSurfaceVariant, c.surfaceContainerHighest);
+        chip(icons::kSecurity, tr(Str::kNoHen), c.onSurfaceVariant, c.surfaceContainerHighest);
     }
 }
 
@@ -648,10 +669,16 @@ void App::drawHints() {
     const Rect hint = hintRect();
     canvas_.fillRect(Rect(hint.x, hint.y, hint.w, 1.0f), c.outlineVariant);
 
-    if (currentScreen_ >= 0 && currentScreen_ < screenCount()) {
-        std::vector<ui::Hint> hints = screens_[static_cast<size_t>(currentScreen_)]->hints();
-        ui::hintBar(ctx_, hint, hints);
-    }
+    // While a confirm sheet is open the screen's own hints are a lie - focus
+    // lives in the modal, not in the list behind it.
+    const std::vector<ui::Hint> hints = confirmActive_
+        ? std::vector<ui::Hint>{{ui::PadGlyph::Cross, tr(Str::kHintConfirm)},
+                                {ui::PadGlyph::Dpad, tr(Str::kHintNavigate)},
+                                {ui::PadGlyph::Circle, tr(Str::kHintBack)}}
+        : (currentScreen_ >= 0 && currentScreen_ < screenCount()
+               ? screens_[static_cast<size_t>(currentScreen_)]->hints()
+               : std::vector<ui::Hint>{});
+    ui::hintBar(ctx_, hint, hints);
 }
 
 void App::drawSnackbar() {
@@ -727,7 +754,7 @@ void App::drawConfirm() {
                                      c.primary);
     }
 
-    ui::button(ctx_, cancel, "Cancel", 0, ui::ButtonStyle::Text, 0.0f, false);
+    ui::button(ctx_, cancel, tr(Str::kCancel), 0, ui::ButtonStyle::Text, 0.0f, false);
     ui::button(ctx_, accept, confirmAccept_, 0,
                confirmDestructive_ ? ui::ButtonStyle::Filled : ui::ButtonStyle::Filled,
                confirmDestructive_ ? 0.0f : 0.0f, false);

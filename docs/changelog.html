@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Changelog - RAW UI</title>
+  <script>
+    // Applied before first paint so the page never flashes the wrong theme.
+    try {
+      var saved = localStorage.getItem('rawui.theme');
+      document.documentElement.dataset.theme =
+        saved === 'light' || saved === 'dark' ? saved : 'dark';
+    } catch (e) {
+      document.documentElement.dataset.theme = 'dark';
+    }
+  </script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: radial-gradient(ellipse at top, #1a1a1a, #0f0f0f);
+      --card-bg: linear-gradient(180deg, #1a1a1a 0%, #151515 100%);
+      --card-border: #333;
+      --text: #fff;
+      --text-dim: #a3a3a3;
+      --heading: #e5e5e5;
+      --accent: #4d9de0;
+      --btn-fg: #fff;
+      --btn-primary: #2d9cdb;
+      --btn-primary-hover: #1f8bcf;
+      --btn-secondary: #333;
+      --btn-secondary-hover: #444;
+      --code-bg: #222;
+      --footer: #888;
+      --badge-bg: rgba(45, 156, 219, 0.16);
+      --badge-fg: #7cc7f5;
+      --pre-bg: #111;
+      --asset-border: #3a3a3a;
+      --latest-ring: rgba(45, 156, 219, 0.35);
+    }
+
+    [data-theme="light"] {
+      color-scheme: light;
+      --bg: radial-gradient(ellipse at top, #f8fafd, #e9edf4);
+      --card-bg: linear-gradient(180deg, #ffffff 0%, #f3f5fa 100%);
+      --card-border: #d7dce5;
+      --text: #1b2029;
+      --text-dim: #5c6675;
+      --heading: #232a34;
+      --accent: #1673bd;
+      --btn-fg: #ffffff;
+      --btn-primary: #1f8bcf;
+      --btn-primary-hover: #166ea6;
+      --btn-secondary: #e4e8ef;
+      --btn-secondary-hover: #d6dbe4;
+      --code-bg: #eaeef4;
+      --footer: #6b7482;
+      --badge-bg: rgba(31, 139, 207, 0.14);
+      --badge-fg: #1673bd;
+      --pre-bg: #f0f3f8;
+      --asset-border: #d7dce5;
+      --latest-ring: rgba(31, 139, 207, 0.35);
+    }
+
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; margin: 0; padding: 20px; background: var(--bg); color: var(--text); line-height: 1.6; }
+    .container { max-width: 860px; margin: 0 auto; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; max-width: 860px; margin: 0 auto 8px; gap: 8px; }
+    .theme-toggle { background: var(--btn-secondary); color: var(--text); border: 1px solid var(--card-border); border-radius: 20px; padding: 6px 14px; cursor: pointer; font-size: 0.9rem; transition: background 0.2s ease; }
+    .theme-toggle:hover { background: var(--btn-secondary-hover); }
+    h1 { color: var(--accent); text-align: center; margin: 1rem 0 0.5rem; font-size: 2.2rem; letter-spacing: -0.025em; }
+    .subtitle { text-align: center; color: var(--text-dim); margin-bottom: 2rem; }
+    .card { background: var(--card-bg); border-radius: 12px; padding: 24px; margin: 20px 0; border: 1px solid var(--card-border); }
+    .card.latest { border-color: var(--latest-ring); box-shadow: 0 0 0 3px var(--latest-ring); }
+    h2 { margin-top: 0; color: var(--heading); }
+    h2 .tag { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--accent); }
+    .meta { color: var(--text-dim); font-size: 0.88rem; margin-bottom: 12px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .pill { display: inline-block; background: var(--badge-bg); color: var(--badge-fg); border: 1px solid var(--badge-fg); border-radius: 999px; padding: 1px 10px; font-size: 0.78rem; font-weight: 600; }
+    .pill.pre { background: rgba(214, 153, 0, 0.16); color: #e0a83a; border-color: #e0a83a; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; background: var(--btn-primary); color: var(--btn-fg); padding: 8px 16px; text-decoration: none; border-radius: 8px; font-size: 0.92rem; transition: background 0.2s ease; }
+    .btn:hover { background: var(--btn-primary-hover); }
+    .btn.secondary { background: var(--btn-secondary); color: var(--text); }
+    .btn.secondary:hover { background: var(--btn-secondary-hover); }
+    .assets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .asset { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--asset-border); border-radius: 8px; padding: 6px 12px; text-decoration: none; color: var(--text); font-size: 0.88rem; background: transparent; }
+    .asset:hover { border-color: var(--accent); }
+    .asset .size { color: var(--text-dim); }
+    .notes h3, .notes h4, .notes h5, .notes h6 { color: var(--heading); font-size: 1.02rem; margin: 16px 0 6px; }
+    .notes ul { padding-left: 20px; margin: 4px 0 10px; }
+    .notes li { color: var(--text-dim); }
+    .notes code { background: var(--code-bg); padding: 1px 5px; border-radius: 5px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.9em; }
+    .notes pre { background: var(--pre-bg); border: 1px solid var(--card-border); padding: 12px; border-radius: 8px; overflow-x: auto; }
+    .notes pre code { background: none; padding: 0; }
+    .notes a { color: var(--accent); }
+    footer { text-align: center; margin-top: 40px; color: var(--footer); }
+    a { color: var(--accent); }
+    .status { color: var(--text-dim); text-align: center; padding: 30px 0; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <a href="index.html" class="btn secondary">← Home</a>
+    <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle colour theme">🌙 Theme</button>
+  </div>
+
+  <div class="container">
+    <h1>📜 Changelog</h1>
+    <p class="subtitle">Every published RAW UI release, newest first.</p>
+
+    <div id="release-list">
+      <p class="status">Loading releases…</p>
+    </div>
+  </div>
+
+  <footer>
+    <p><a href="https://github.com/bitplugg/rawui/releases">View on GitHub Releases</a></p>
+  </footer>
+
+  <script>
+    // ---- colour theme ------------------------------------------------------
+    var themeBtn = document.getElementById('theme-toggle');
+    function paintToggle() {
+      var dark = document.documentElement.dataset.theme !== 'light';
+      themeBtn.textContent = dark ? '🌙 Theme' : '☀️ Theme';
+    }
+    themeBtn.addEventListener('click', function () {
+      var next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+      document.documentElement.dataset.theme = next;
+      try { localStorage.setItem('rawui.theme', next); } catch (e) {}
+      paintToggle();
+    });
+    paintToggle();
+
+    // ---- helpers -----------------------------------------------------------
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
+    function humanSize(bytes) {
+      var n = Number(bytes) || 0;
+      var units = ['B', 'KB', 'MB', 'GB'];
+      var i = 0;
+      while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+      return (i === 0 ? n : n.toFixed(1)) + ' ' + units[i];
+    }
+
+    // Small markdown renderer for release notes.  The input is escaped first,
+    // so nothing from GitHub can inject markup - only the constructs below
+    // survive.
+    function renderMarkdown(src) {
+      var text = escapeHtml(String(src || ''));
+      var blocks = [];
+      // Fenced code first, so later rules cannot touch their contents.
+      text = text.replace(/```[a-z]*\n([\s\S]*?)```/gi, function (_, code) {
+        blocks.push('<pre><code>' + code.replace(/\n$/, '') + '</code></pre>');
+        return '\u0000BLOCK' + (blocks.length - 1) + '\u0000';
+      });
+
+      var lines = text.split('\n');
+      var html = '';
+      var list = false;
+      var paragraph = [];
+
+      function closeList() {
+        if (list) { html += '</ul>'; list = false; }
+      }
+      function flushParagraph() {
+        if (paragraph.length) {
+          html += '<p>' + inline(paragraph.join(' ')) + '</p>';
+          paragraph = [];
+        }
+      }
+
+      function inline(s) {
+        return s
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+          // _text_ - kept word-bounded so identifiers like some_file_name and
+          // URLs (which the escaping already neutralised) stay untouched.
+          .replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,;:!?]|$)/g, '$1<em>$2</em>')
+          .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" rel="noopener">$1</a>');
+      }
+
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        var block = line.match(/^\u0000BLOCK(\d+)\u0000$/);
+        if (block) {
+          flushParagraph(); closeList();
+          html += blocks[Number(block[1])];
+          continue;
+        }
+        var heading = line.match(/^(#{1,6})\s+(.*)$/);
+        if (heading) {
+          flushParagraph(); closeList();
+          var level = Math.min(6, heading[1].length + 2);
+          html += '<h' + level + '>' + inline(heading[2]) + '</h' + level + '>';
+          continue;
+        }
+        if (/^\s*[-*]\s+/.test(line)) {
+          flushParagraph();
+          if (!list) { html += '<ul>'; list = true; }
+          html += '<li>' + inline(line.replace(/^\s*[-*]\s+/, '')) + '</li>';
+          continue;
+        }
+        if (!line.trim()) { flushParagraph(); closeList(); continue; }
+        paragraph.push(line.trim());
+      }
+      flushParagraph(); closeList();
+      return html;
+    }
+
+    function render(releases) {
+      var host = document.getElementById('release-list');
+      if (!releases.length) {
+        host.innerHTML = '<p class="status">No releases published yet. ' +
+          '<a href="https://github.com/bitplugg/rawui/actions">Check the build pipeline</a>.</p>';
+        return;
+      }
+      host.innerHTML = releases.map(function (r, index) {
+        var assets = (r.assets || []).map(function (a) {
+          return '<a class="asset" href="' + escapeHtml(a.browser_download_url) + '">' +
+            escapeHtml(a.name) + ' <span class="size">' + humanSize(a.size) + '</span></a>';
+        }).join('');
+
+        return '<section class="card' + (index === 0 && !r.prerelease ? ' latest' : '') + '">' +
+          '<h2><span class="tag">' + escapeHtml(r.tag_name) + '</span> ' +
+          escapeHtml(r.name || '') + '</h2>' +
+          '<div class="meta">' +
+            '<span>' + escapeHtml(String(r.published_at || '').slice(0, 10)) + '</span>' +
+            (r.prerelease ? '<span class="pill pre">prerelease</span>' : '') +
+            (index === 0 && !r.prerelease ? '<span class="pill">latest</span>' : '') +
+          '</div>' +
+          '<div class="notes">' + renderMarkdown(r.body) + '</div>' +
+          (assets ? '<div class="assets">' + assets + '</div>' : '') +
+          '</section>';
+      }).join('');
+    }
+
+    // ---- load (cached: GitHub rate-limits unauthenticated calls) -----------
+    var TTL_MS = 10 * 60 * 1000;
+    function fromCache() {
+      try {
+        var raw = localStorage.getItem('rawui.releases');
+        if (!raw) return null;
+        var entry = JSON.parse(raw);
+        if (entry && entry.t && Date.now() - entry.t < TTL_MS && Array.isArray(entry.data)) {
+          return entry.data;
+        }
+      } catch (e) {}
+      return null;
+    }
+
+    var cached = fromCache();
+    if (cached) {
+      render(cached);
+    } else {
+      fetch('https://api.github.com/repos/bitplugg/rawui/releases?per_page=30')
+        .then(function (r) { return r.ok ? r.json() : []; })
+        .then(function (data) {
+          var list = Array.isArray(data) ? data : [];
+          if (list.length) {
+            try {
+              localStorage.setItem('rawui.releases', JSON.stringify({ t: Date.now(), data: list }));
+            } catch (e) {}
+          }
+          render(list);
+        })
+        .catch(function () {
+          document.getElementById('release-list').innerHTML =
+            '<p class="status">Could not reach the GitHub API (it is rate limited for ' +
+            'anonymous visitors). See <a href="https://github.com/bitplugg/rawui/releases">' +
+            'the releases page</a> instead.</p>';
+        });
+    }
+  </script>
+</body>
+</html>

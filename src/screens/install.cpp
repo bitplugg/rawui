@@ -21,9 +21,11 @@ std::string hex32(int value) {
 }  // namespace
 
 std::string InstallScreen::subtitle(App& app) {
-    if (installing_) return "Installing " + installName_;
-    if (pkgs_.empty()) return scanned_ ? "No packages found" : "Scanning drives...";
-    return std::to_string(pkgs_.size()) + (pkgs_.size() == 1 ? " package" : " packages");
+    if (installing_) return trf(Str::kInstallingName, installName_.c_str());
+    if (pkgs_.empty()) return scanned_ ? tr(Str::kNoPackages) : tr(Str::kScanning);
+    const int n = static_cast<int>(pkgs_.size());
+    return std::to_string(n) + " " +
+           trn(Str::kUnitPackageOne, Str::kUnitPackageFew, Str::kUnitPackageMany, n);
 }
 
 void InstallScreen::onEnter(App& app) {
@@ -37,8 +39,11 @@ void InstallScreen::scan(App& app) {
     pkgs_ = pkg::scan(roots, 3, 400);
     scanned_ = true;
     scroll_.reset();
-    app.toast(pkgs_.empty() ? "No .pkg files found on the mounted volumes"
-                            : std::to_string(pkgs_.size()) + " package(s) found");
+    const int found = static_cast<int>(pkgs_.size());
+    app.toast(found == 0 ? std::string(tr(Str::kNoPkgOnVolumes))
+                         : std::to_string(found) + " " +
+                               trn(Str::kUnitPackageOne, Str::kUnitPackageFew,
+                                   Str::kUnitPackageMany, found));
 }
 
 void InstallScreen::beginInstall(App& app, int index) {
@@ -56,7 +61,7 @@ void InstallScreen::beginInstall(App& app, int index) {
         installFailed_ = false;
         const int rc = pkg::startInstall(path);
         if (rc != 0) {
-            app.toast("Install rejected: " + hex32(rc), true);
+            app.toast(std::string(tr(Str::kInstallRejected)) + ": " + hex32(rc), true);
             installFailed_ = true;
             installing_ = false;
             return;
@@ -73,14 +78,15 @@ void InstallScreen::beginInstall(App& app, int index) {
         progress_.indeterminate = contentId.empty();
         pollTimer_ = 0.0f;
         elapsed_ = 0.0f;
-        app.toast("Installing " + name, true);
+        app.toast(trf(Str::kInstallingName, name.c_str()), true);
     };
 
     if (!titleId.empty() && pkg::appExists(titleId)) {
-        app.showConfirm("Already installed",
-                        "Title " + titleId +
-                            " is already installed. The installer will overwrite it.",
-                        "Overwrite", run, true);
+        // Built before showConfirm() so no trf() call can clobber the shared
+        // buffer while the strings are still being read.
+        const std::string body = std::string(trf(Str::kTitleIsInstalled, titleId.c_str())) + " " +
+                                 tr(Str::kWillOverwrite);
+        app.showConfirm(tr(Str::kAlreadyInstalled), body, tr(Str::kOverwrite), run, true);
         return;
     }
 
@@ -101,7 +107,7 @@ void InstallScreen::update(App& app, float dt) {
 
     if (progress_.finished) {
         installing_ = false;
-        app.toast("Installed " + installName_, true);
+        app.toast(trf(Str::kInstalled, installName_.c_str()), true);
         pkgs_.clear();
         scan(app);
     }
@@ -117,14 +123,14 @@ void InstallScreen::draw(App& app) {
 
     // --- toolbar ------------------------------------------------------------
     const Rect toolbar(area.x, area.y, area.w, 56.0f * s);
-    ui::drawText(ctx, "Searching: USB drives, /data, /mnt/ext0", ctx.type().bodyMedium,
+    ui::drawText(ctx, tr(Str::kSearching), ctx.type().bodyMedium,
                  Rect(toolbar.x + 4.0f * s, toolbar.y, toolbar.w - 220.0f * s, toolbar.h),
                  c.onSurfaceVariant, ui::Align::Left, ui::VAlign::Middle);
 
     const Rect refresh(toolbar.right() - 150.0f * s, toolbar.y, 150.0f * s, 48.0f * s);
     const float refreshProx = ui::focusProximity(ctx, refresh, 90.0f * s);
-    ui::button(ctx, refresh, "Rescan", icons::kRefresh, ui::ButtonStyle::Tonal, refreshProx,
-               false, true);
+    ui::button(ctx, refresh, tr(Str::kHintRescan), icons::kRefresh, ui::ButtonStyle::Tonal,
+               refreshProx, false, true);
     ctx.focus->add(refresh, kRefresh, true, refresh.h * 0.5f);
 
     // --- list ---------------------------------------------------------------
@@ -139,12 +145,11 @@ void InstallScreen::draw(App& app) {
     if (focused < 0 || focused >= count) focused = focusIndex_;
 
     if (count == 0) {
-        const std::string msg = scanned_ ? "No .pkg files were found."
-                                         : "Scanning mounted volumes...";
+        const std::string msg = scanned_ ? tr(Str::kNoPkgFiles) : tr(Str::kScanningVolumes);
         ui::drawText(ctx, msg, ctx.type().bodyLarge,
                      Rect(list.x, list.y + 40.0f * s, list.w, 60.0f * s), c.onSurfaceVariant,
                      ui::Align::Left, ui::VAlign::Middle);
-        ui::drawText(ctx, "Copy a package to a USB drive, then press Triangle to rescan.",
+        ui::drawText(ctx, tr(Str::kCopyPkgHint),
                      ctx.type().bodyMedium,
                      Rect(list.x, list.y + 90.0f * s, list.w, 40.0f * s),
                      c.onSurfaceVariant.withAlphaF(0.7f), ui::Align::Left, ui::VAlign::Middle);
@@ -157,7 +162,7 @@ void InstallScreen::draw(App& app) {
         const PkgCandidate& p = pkgs_[static_cast<size_t>(i)];
         const Rect row(list.x, y, list.w, rowH - 6.0f * s);
 
-        std::string supporting = p.contentId.empty() ? "content id not in file name"
+        std::string supporting = p.contentId.empty() ? tr(Str::kContentIdMissing)
                                                      : p.contentId;
         ui::listItem(ctx, row, p.contentId.empty() ? icons::kArchive : icons::kDownloadDone,
                      p.name, supporting, humanSize(p.size), i == focused,
@@ -181,9 +186,9 @@ void InstallScreen::draw(App& app) {
 }
 
 std::string InstallScreen::stateText() const {
-    if (installFailed_) return "Failed";
-    if (progress_.finished) return "Finishing up";
-    if (progress_.indeterminate) return "Installing - no progress data available";
+    if (installFailed_) return tr(Str::kStatusFailed);
+    if (progress_.finished) return tr(Str::kFinishing);
+    if (progress_.indeterminate) return tr(Str::kStatusNoData);
     return std::to_string(progress_.percent) + "%";
 }
 
@@ -205,7 +210,7 @@ void InstallScreen::drawProgress(App& app, const Rect& area) {
     ui::progressRing(ctx, ringCentre, ringR, 7.0f * s, value, c.surfaceContainerHighest,
                      installFailed_ ? c.error : c.primary, spin);
 
-    std::string title = installFailed_ ? "Install failed" : "Installing";
+    std::string title = installFailed_ ? tr(Str::kInstallFailedTitle) : tr(Str::kInstalling);
     if (!progress_.finished && !installFailed_) title += " " + installName_;
 
     const float textX = ringCentre.x + ringR + 22.0f * s;
@@ -223,15 +228,17 @@ void InstallScreen::drawProgress(App& app, const Rect& area) {
 
     std::string detail;
     if (installFailed_) {
-        detail = "The installer refused the package. Free space, a GoldHEN-enabled "
-                 "system and a valid FPKG are all required.";
+        detail = tr(Str::kInstallRefusedDetail);
     } else if (progress_.totalBytes > 0) {
-        detail = humanSize(progress_.progressBytes) + " of " + humanSize(progress_.totalBytes);
+        detail = trf(Str::kBytesOf, humanSize(progress_.progressBytes).c_str(),
+                     humanSize(progress_.totalBytes).c_str());
         if (progress_.remainingSec > 0) {
-            detail += "  ·  about " + std::to_string(progress_.remainingSec) + "s left";
+            // Cast for the "%d" conversion: remainingSec is unsigned, and
+            // printf's promotion rules would otherwise be undefined behaviour.
+            detail += trf(Str::kSecondsLeft, static_cast<int>(progress_.remainingSec));
         }
     } else {
-        detail = "Waiting for the installer service.";
+        detail = tr(Str::kWaitingInstaller);
     }
 
     ui::drawText(ctx, detail, ctx.type().bodySmall,
@@ -257,7 +264,7 @@ void InstallScreen::onAlt(App& app, int focusId) {
 
     const PkgCandidate& p = pkgs_[static_cast<size_t>(index)];
     const std::string titleId = pkg::readTitleId(p.path);
-    app.toast(p.name + "  ·  " + (titleId.empty() ? "unknown title" : titleId), true);
+    app.toast(p.name + "  ·  " + (titleId.empty() ? tr(Str::kUnknownTitle) : titleId), true);
 }
 
 }  // namespace rawui

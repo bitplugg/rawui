@@ -88,6 +88,7 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       version: ${{ needs.meta.outputs.version }}
+      appVersion: ${{ needs.meta.outputs.tag }}
 
   release:
     name: Publish release
@@ -115,6 +116,18 @@ jobs:
           cp IV0000-*.pkg "RAWUI0001-${TAG}.pkg"
           sha256sum "RAWUI0001-${TAG}.pkg" > SHA256SUMS.txt
           cat SHA256SUMS.txt
+
+      # CycloneDX SBOM of the shipped package.  Uploaded as a release asset
+      # below rather than through the action's own auto-publish, so the asset
+      # is guaranteed to exist before `gh release create` runs.
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          file: dist/RAWUI0001-${{ needs.meta.outputs.tag }}.pkg
+          format: cyclonedx-json
+          output-file: dist/RAWUI0001-${{ needs.meta.outputs.tag }}.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
 
       - name: Generate changelog
         env:
@@ -216,6 +229,18 @@ jobs:
           TAG: ${{ needs.meta.outputs.tag }}
           PRERELEASE: ${{ needs.meta.outputs.prerelease }}
         run: |
+          # release-drafter keeps a draft release carrying the tag we are about
+          # to publish; leaving it behind would make `gh release create` fail
+          # with "tag_name already_exists".  Retire it first.
+          gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --paginate \
+            --jq ".[] | select(.draft == true and .tag_name == \"${TAG}\") | .id" |
+          while read -r id; do
+            [ -n "$id" ] || continue
+            echo "removing stale draft release ${id}"
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/${id}"
+          done
+
           # gh release create makes the tag itself if it doesn't exist yet
           # (manual runs create a fresh tag at the current commit).
           # Prerelease tags (v1.2.3-rc1, v1.2.3-beta.2) are flagged so they
@@ -229,7 +254,8 @@ jobs:
             --notes-file notes.md \
             "${FLAGS[@]}" \
             "dist/RAWUI0001-${TAG}.pkg" \
-            dist/SHA256SUMS.txt
+            dist/SHA256SUMS.txt \
+            "dist/RAWUI0001-${TAG}.cdx.json"
 
       - name: Sync Pages fallback package
         continue-on-error: true   # a failed push must not undo the release

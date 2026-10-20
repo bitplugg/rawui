@@ -12,12 +12,34 @@ on:
         type: string
         required: false
         default: '1.00'
+      appVersion:
+        description: Version shown in the shell's About row (usually the release tag)
+        type: string
+        required: false
+        default: ''
 
 env:
   OO_VERSION: v0.5.4
   OO_ASSET: toolchain-llvm-18.tar.gz
 
 jobs:
+  tests:
+    name: Host unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Colour engine unit tests: these build with the host compiler and
+      # deliberately do not need the PS4 toolchain, so they stay fast.
+      - name: Colour engine tests
+        run: make test
+
+      # docs/themes.html carries a JS copy of the colour engine; this fails the
+      # build if the two implementations stop producing the same colours.
+      - name: Web theme generator stays in sync
+        run: make test-port
+
   pkg:
     name: Build FPKG
     runs-on: ubuntu-24.04
@@ -74,7 +96,15 @@ jobs:
           LD_LIBRARY_PATH: /home/runner/ssl11/usr/lib/x86_64-linux-gnu
         # build.sh forwards extra args to make; command-line vars override
         # the Makefile's := defaults, so VERSION comes from the release tag.
-        run: bash tools/build.sh VERSION="${{ inputs.version || '01.00' }}"
+        # APP_VERSION is only passed when there is one - a plain push has no
+        # tag, and an empty value would print "v · " in the About row, so the
+        # Makefile's `dev` default takes over there.
+        run: |
+          ARGS=(VERSION="${{ inputs.version || '01.00' }}")
+          if [ -n "${{ inputs.appVersion }}" ]; then
+            ARGS+=(APP_VERSION="${{ inputs.appVersion }}")
+          fi
+          bash tools/build.sh "${ARGS[@]}"
 
       - name: Show artefacts
         run: ls -lh dist/
