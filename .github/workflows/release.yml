@@ -26,6 +26,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write   # the Pages sync step opens and auto-merges a PR
   id-token: write
   attestations: write
 
@@ -258,12 +259,18 @@ jobs:
             "dist/RAWUI0001-${TAG}.cdx.json"
 
       - name: Sync Pages fallback package
-        continue-on-error: true   # a failed push must not undo the release
         env:
+          GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.meta.outputs.tag }}
         run: |
           # docs/RAWUI0001.pkg is the static-package fallback served by Pages;
           # *.pkg is gitignored, so add with -f (the file is already tracked).
+          #
+          # main is protected by the "main protection" ruleset, so this cannot
+          # push directly (GH013: Changes must be made through a pull request).
+          # Open a branch, let the PR checks run, and auto-merge it once they
+          # are green - that keeps the ruleset genuinely enforced instead of
+          # handing Actions a bypass.
           git fetch origin main
           git checkout -B main origin/main
           cp "dist/RAWUI0001-${TAG}.pkg" docs/RAWUI0001.pkg
@@ -272,7 +279,25 @@ jobs:
             echo "docs/RAWUI0001.pkg is already up to date, skipping"
             exit 0
           fi
+
+          BRANCH="chore/pages-sync-${TAG}"
+          git checkout -B "$BRANCH"
           git -c user.name="github-actions[bot]" \
               -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
               commit -m "chore: sync docs/RAWUI0001.pkg from release ${TAG}"
-          git push origin main
+          git push -f origin "$BRANCH"
+
+          gh pr create --repo "${GITHUB_REPOSITORY}" \
+            --base main --head "$BRANCH" \
+            --title "chore: sync docs/RAWUI0001.pkg from release ${TAG}" \
+            --body "Automatic Pages fallback sync for release ${TAG}.
+
+          Brings \`docs/RAWUI0001.pkg\` in line with the published release asset so
+          \`releases/latest/download/RAWUI0001.pkg\` and the Pages copy serve the
+          same bytes." \
+            || echo "PR already exists, reusing it"
+
+          # Merge automatically once the required checks pass.
+          gh pr merge "$BRANCH" --repo "${GITHUB_REPOSITORY}" \
+            --squash --auto --delete-branch \
+            || echo "auto-merge could not be enabled; merge the sync PR by hand"
