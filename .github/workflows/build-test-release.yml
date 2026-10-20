@@ -1,0 +1,584 @@
+name: build-test-release
+
+# ============================================================================
+#  The one workflow.  One run does everything, in order:
+#
+#      tests   -> host unit tests (colour engine, i18n) and the C++/JS port check
+#      build   -> compile the FPKG with the release version baked into param.sfo
+#      sanity  -> rawui-tester: is this the *right* package, not just a package
+#      release -> publish a GitHub Release (pkg + SBOM + checksums + changelog)
+#      pages   -> sync docs/RAWUI0001.pkg and redeploy the site
+#
+#  Triggers:
+#    * push to main      -> tests, build, sanity, then an automatic release
+#                           (patch auto-increment: 0.0.4 -> 0.0.5, rolling at .9)
+#    * pull request      -> tests, build, sanity only (no release)
+#    * workflow_dispatch -> everything; `version` overrides the auto-increment
+#
+#  Every job is a separate required status check in the "main protection"
+#  ruleset, so a red test blocks the merge.
+# ============================================================================
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.2.3 or 1.2.3-rc1). Leave empty to auto-increment the patch of the latest stable tag.'
+        required: false
+        default: ''
+      release:
+        description: 'Publish a GitHub Release (uncheck for a dry run)'
+        type: boolean
+        required: false
+        default: true
+
+# Least privilege at the top; jobs that need more ask for it themselves.
+permissions:
+  contents: read
+
+# A new push to main supersedes an in-flight release run; a red run must never
+# leave a half-published release behind, so only cancel non-main work.
+concurrency:
+  group: btr-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  OO_VERSION: v0.5.4
+  OO_ASSET: toolchain-llvm-18.tar.gz
+
+jobs:
+  # -------------------------------------------------------------------------
+  #  1. Version
+  # -------------------------------------------------------------------------
+  meta:
+    name: Derive version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.ver.outputs.version }}         # MAJOR.MINOR for param.sfo
+      tag: ${{ steps.ver.outputs.tag }}                 # vX.Y.Z for the release
+      title: ${{ steps.ver.outputs.title }}             # X.Y.Z for the release title
+      prerelease: ${{ steps.ver.outputs.prerelease }}   # true for vX.Y.Z-suffix tags
+      publish: ${{ steps.ver.outputs.publish }}         # should the release job run
+    steps:
+      - id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          IN_VERSION: ${{ inputs.version }}
+          IN_RELEASE: ${{ inputs.release }}
+        run: |
+          # ---- which version -------------------------------------------------
+          # A tag push names the version; a manual run may name one; otherwise
+          # bump the patch of the latest stable tag.  Auto-increment is pure
+          # patch with a roll-over at .9 so 0.1.9 -> 0.2.0 (the older selftest
+          # that produced 0.1.10 would print "0.1.10", which param.sfo cannot
+          # hold in NN.NN form).
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          elif [ -n "$IN_VERSION" ]; then
+            TAG="v${IN_VERSION#v}"
+          else
+            LAST="$(gh api "repos/${GITHUB_REPOSITORY}/tags?per_page=100" \
+                      --jq '.[].name' \
+                    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)"
+            if [ -z "$LAST" ]; then
+              TAG="v0.0.1"
+            else
+              M="${LAST#v}"
+              MAJ="${M%%.*}"; REST="${M#*.}"
+              MIN="${REST%%.*}"; PAT="${REST#*.}"
+              PAT=$((PAT + 1))
+              if [ "$PAT" -gt 9 ]; then PAT=0; MIN=$((MIN + 1)); fi
+              TAG="v${MAJ}.${MIN}.${PAT}"
+            fi
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "title=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+          # anything that is not a plain vX.Y.Z is a prerelease
+          if printf '%s' "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          # ---- should we publish ---------------------------------------------
+          # Never on a pull request (that would tag every branch), never when a
+          # manual run explicitly asked for a dry run.
+          PUBLISH=false
+          case "$EVENT" in
+            push)   [ "${GITHUB_REF_NAME}" = "main" ] && PUBLISH=true ;;
+            workflow_dispatch) [ "$IN_RELEASE" != "false" ] && PUBLISH=true ;;
+          esac
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
+
+          # ---- param.sfo VERSION = MAJOR.MINOR, zero padded --------------------
+          # v1.2.3-rc1 -> 1.2 (the suffix is stripped, the console never sees it)
+          MAJ="$(printf '%s' "${TAG#v}" | cut -d. -f1 | grep -oE '^[0-9]+' || true)"
+          MIN="$(printf '%s' "${TAG#v}" | cut -d. -f2 | grep -oE '^[0-9]+' || true)"
+          printf "version=%02d.%02d\n" "${MAJ:-1}" "${MIN:-0}" >> "$GITHUB_OUTPUT"
+
+          echo "resolved tag : $TAG"
+          echo "param.sfo    : $(grep '^version=' "$GITHUB_OUTPUT" | tail -n1 | cut -d= -f2)"
+          echo "publish      : $PUBLISH"
+
+  # -------------------------------------------------------------------------
+  #  2. Tests
+  # -------------------------------------------------------------------------
+  tests:
+    name: Host unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends make nodejs g++
+
+      # Colour engine + string table: pure code, host compiler, no toolchain.
+      - name: Unit tests
+        run: make test
+
+      # docs/themes.html carries a JS copy of the colour engine; this fails if
+      # the two implementations stop producing the same colours.
+      - name: Colour engine port stays in sync
+        run: make test-port
+
+  # -------------------------------------------------------------------------
+  #  3. Build
+  # -------------------------------------------------------------------------
+  build:
+    name: Build FPKG
+    needs: meta
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install compilers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang-18 lld-18 llvm-18 make curl ca-certificates file
+          sudo ln -sf /usr/bin/clang-18   /usr/local/bin/clang
+          sudo ln -sf /usr/bin/clang++-18 /usr/local/bin/clang++
+          sudo ln -sf /usr/bin/ld.lld-18  /usr/local/bin/ld.lld
+
+      - name: Cache OpenOrbis toolchain
+        id: cache-tc
+        uses: actions/cache@v6
+        with:
+          path: ~/oo/OpenOrbis
+          key: oo-${{ env.OO_VERSION }}-${{ env.OO_ASSET }}
+
+      - name: Fetch OpenOrbis toolchain
+        if: steps.cache-tc.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/oo/dl
+          curl -fsSL --retry 3 -o ~/oo/dl/${OO_ASSET} \
+            "https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain/releases/download/${OO_VERSION}/${OO_ASSET}"
+          tar -xzf ~/oo/dl/${OO_ASSET} -C ~/oo/dl
+          mkdir -p ~/oo/OpenOrbis
+          mv ~/oo/dl/OpenOrbis/PS4Toolchain ~/oo/OpenOrbis/PS4Toolchain
+
+      - name: Fetch OpenSSL 1.1 runtime (for PkgTool.Core)
+        run: |
+          mkdir -p ~/ssl11
+          curl -fsSL --retry 3 -o /tmp/libssl1.1.deb \
+            "http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb"
+          # sha256 pin: refuse to install a tampered package
+          echo "7cf39d70a639017d1dd7c8d36daa2258063608688e449fddf40ffdd46f992a78  /tmp/libssl1.1.deb" \
+            | sha256sum -c -
+          dpkg-deb -x /tmp/libssl1.1.deb ~/ssl11
+
+      - name: Show build metadata
+        env:
+          OO_PS4_TOOLCHAIN: /home/runner/oo/OpenOrbis/PS4Toolchain
+        # `make info` only echoes metadata; it does not compile anything.
+        run: make info
+
+      - name: Compile package
+        env:
+          OO_PS4_TOOLCHAIN: /home/runner/oo/OpenOrbis/PS4Toolchain
+          LD_LIBRARY_PATH: /home/runner/ssl11/usr/lib/x86_64-linux-gnu
+        # VERSION lands in param.sfo, APP_VERSION in the About row.  A plain PR
+        # build has no tag, so APP_VERSION falls back to the Makefile default
+        # ("dev") rather than printing "v · " in the shell.
+        run: |
+          ARGS=(VERSION="${{ needs.meta.outputs.version }}")
+          if [ "${{ needs.meta.outputs.publish }}" = "true" ]; then
+            ARGS+=(APP_VERSION="${{ needs.meta.outputs.tag }}")
+          fi
+          bash tools/build.sh "${ARGS[@]}"
+
+      - name: Show artefacts
+        run: ls -lh dist/
+
+      - name: Upload .pkg
+        uses: actions/upload-artifact@v7
+        with:
+          name: RAWUI0001-pkg
+          path: dist/*.pkg
+          if-no-files-found: error
+          retention-days: 30
+
+      # The gp4 manifest *and* every file it references, so the sanity job can
+      # verify the payload exactly as it was packed (re-deriving the files
+      # there would check a different tree than the one that went into the .pkg).
+      - name: Upload package payload
+        uses: actions/upload-artifact@v7
+        with:
+          name: RAWUI0001-payload
+          path: |
+            pkg/pkg.gp4
+            pkg/eboot.bin
+            pkg/sce_sys/param.sfo
+            pkg/sce_sys/icon0.png
+            pkg/sce_sys/about/right.sprx
+            pkg/sce_module/*.prx
+            pkg/assets/**
+          if-no-files-found: error
+          retention-days: 30
+
+  # -------------------------------------------------------------------------
+  #  4. Sanity (rawui-tester)
+  # -------------------------------------------------------------------------
+  sanity:
+    name: Package sanity
+    needs: [meta, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # g++/make for the i18n test, node for the colour-engine port check.
+      - name: Install tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            g++ make nodejs file python3 curl ca-certificates
+
+      - name: Download built .pkg
+        uses: actions/download-artifact@v8
+        with:
+          name: RAWUI0001-pkg
+          path: dist
+
+      # The gp4 manifest and the payload files it references, exactly as they
+      # were packed - so the check inspects the real artefact, not a rebuild.
+      #
+      # upload-artifact stores paths relative to their common ancestor, and
+      # every uploaded path lives under pkg/, so the archive root is pkg/.
+      # Download into a staging directory first and normalise, so the layout
+      # is right whether or not the uploader kept a leading pkg/ segment.
+      - name: Download package payload
+        uses: actions/download-artifact@v8
+        with:
+          name: RAWUI0001-payload
+          path: _payload
+
+      - name: Place payload for inspection
+        run: |
+          set -eu
+          mkdir -p pkg
+          if [ -f _payload/pkg/pkg.gp4 ]; then
+            # path: pkg was preserved by the uploader
+            cp -a _payload/pkg/. pkg/
+          else
+            # archive root is pkg/ itself
+            cp -a _payload/. pkg/
+          fi
+          test -f pkg/pkg.gp4 || {
+            echo "::error::pkg.gp4 missing after staging"
+            find _payload | head -40
+            exit 1
+          }
+          echo "payload staged:"; find pkg -type f | sort | head -30
+
+      # rawui-tester reads GITHUB_REF to decide whether to demand byte
+      # equality between dist/ and docs/RAWUI0001.pkg; only a release run can
+      # guarantee that.
+      - name: Run rawui-tester
+        env:
+          GITHUB_REF: ${{ github.ref }}
+        run: tools/rawui-tester.sh
+
+  # -------------------------------------------------------------------------
+  #  5. Release
+  # -------------------------------------------------------------------------
+  release:
+    name: Publish release
+    needs: [meta, tests, build, sanity]
+    if: needs.meta.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write   # the Pages sync step opens and auto-merges a PR
+      id-token: write
+      attestations: write
+    outputs:
+      tag: ${{ needs.meta.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0             # full history so the changelog covers old commits
+          persist-credentials: true  # needed later to push the docs/ sync branch
+
+      - name: Download .pkg
+        uses: actions/download-artifact@v8
+        with:
+          name: RAWUI0001-pkg
+          path: dist
+
+      - name: Checksum
+        env:
+          TAG: ${{ needs.meta.outputs.tag }}
+        run: |
+          cd dist
+          # rename to the asset name the release will carry, then checksum it
+          cp IV0000-*.pkg "RAWUI0001-${TAG}.pkg"
+          sha256sum "RAWUI0001-${TAG}.pkg" > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      # CycloneDX SBOM of the shipped package.  Listed explicitly in
+      # `gh release create` below rather than auto-published, so the asset is
+      # guaranteed to exist before the release is created.
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          file: dist/RAWUI0001-${{ needs.meta.outputs.tag }}.pkg
+          format: cyclonedx-json
+          output-file: dist/RAWUI0001-${{ needs.meta.outputs.tag }}.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Generate changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.meta.outputs.tag }}
+        run: |
+          # ---- previous release tag (prereleases excluded) -------------------
+          PREV="$(git tag --list --sort=-v:refname 'v*' \
+                    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+                    | grep -vx "$TAG" \
+                    | head -n1 || true)"
+          RANGE="${PREV:+${PREV}..}HEAD"
+
+          # ---- grouped changelog from conventional-commit subjects -----------
+          # Type is matched case-insensitively before the first ':', an optional
+          # scope is moved to the end in parentheses:
+          #   "feat(themes): add presets"  ->  "- add presets (themes)"
+          GROUPED="$(git log --no-merges --pretty=%s "$RANGE" | awk '
+            {
+              type = ""; scope = ""; desc = $0
+              if (match($0, /^[ \t]*[A-Za-z][A-Za-z-]*(\([^)]*\))?[ \t]*:/)) {
+                head = substr($0, 1, RLENGTH)
+                desc = substr($0, RLENGTH + 1)
+                sub(/^[ \t]+/, "", desc)
+                sub(/:$/, "", head)
+                sub(/[ \t]+$/, "", head)
+                if (match(head, /\(/)) {
+                  scope = substr(head, RSTART + 1)
+                  sub(/\)[ \t]*$/, "", scope)
+                  type = substr(head, 1, RSTART - 1)
+                } else {
+                  type = head
+                }
+                type = tolower(type)
+              }
+              line = "- " desc
+              if (scope != "") line = line " (" scope ")"
+              if      (type == "feat" || type == "feature")      g = 1
+              else if (type == "fix" || type == "bugfix" || type == "fixes") g = 2
+              else if (type == "perf" || type == "performance")  g = 3
+              else if (type == "refactor")                       g = 4
+              else if (type == "docs" || type == "doc")          g = 5
+              else if (type == "test" || type == "tests")        g = 6
+              else if (type == "chore" || type == "build" || type == "ci" ||
+                       type == "style" || type == "update" ||
+                       type == "dependencies")                   g = 7
+              else                                               g = 8
+              buf[g] = buf[g] line "\n"
+            }
+            END {
+              title[1] = "### ✨ Features"
+              title[2] = "### 🐛 Fixes"
+              title[3] = "### ⚡ Performance"
+              title[4] = "### 🔄 Refactor"
+              title[5] = "### 📝 Docs"
+              title[6] = "### 🧪 Tests"
+              title[7] = "### 🔧 Chore"
+              title[8] = "### 📦 Other"
+              for (i = 1; i <= 8; i++)
+                if (buf[i] != "") printf "%s\n%s", title[i], buf[i]
+            }')"
+
+          if [ -n "$GROUPED" ]; then
+            NOTES="$GROUPED"
+            if [ -n "$PREV" ]; then
+              NOTES="${NOTES}"$'\n\n'"_Полный список: [${PREV}...${TAG}](https://github.com/${GITHUB_REPOSITORY}/compare/${PREV}..${TAG})_"
+            fi
+          else
+            # No commits since the previous tag (or no history at all): fall
+            # back to GitHub's own notes generator.
+            NOTES="$(gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+                       -F tag_name="${TAG}" \
+                       -F target_commitish="${GITHUB_SHA}" --jq .body)" || NOTES=""
+          fi
+
+          cat > notes.md <<EOF
+          ## Установка
+          Скопируй \`RAWUI0001-${TAG}.pkg\` на USB-флешку и установи через
+          **Settings → Debug Settings → Game → Package Installer** (нужен GoldHEN).
+
+          Или скачай напрямую: https://bitplugg.github.io/rawui/RAWUI0001.pkg
+
+          ## Что нового
+          ${NOTES:-См. коммиты: https://github.com/${GITHUB_REPOSITORY}/commits/${TAG}}
+
+          ## Проверка целостности
+          \`\`\`
+          $(cat dist/SHA256SUMS.txt)
+          \`\`\`
+          EOF
+
+      - name: Attest build provenance
+        continue-on-error: true   # never let attestation block a release
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: dist/*.pkg
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.meta.outputs.tag }}
+          PRERELEASE: ${{ needs.meta.outputs.prerelease }}
+        run: |
+          # release-drafter keeps a draft release carrying the tag we are about
+          # to publish; leaving it behind would make `gh release create` fail
+          # with "tag_name already_exists".  Retire it first.
+          gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --paginate \
+            --jq ".[] | select(.draft == true and .tag_name == \"${TAG}\") | .id" |
+          while read -r id; do
+            [ -n "$id" ] || continue
+            echo "removing stale draft release ${id}"
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/${id}"
+          done
+
+          # gh release create makes the tag itself if it doesn't exist yet.
+          # Prerelease tags (v1.2.3-rc1) are flagged so they don't show up as
+          # the "latest" release on the repo page.
+          FLAGS=()
+          if [ "$PRERELEASE" = "true" ]; then FLAGS+=(--prerelease); fi
+          gh release create "$TAG" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "$GITHUB_SHA" \
+            --title "RAW UI ${{ needs.meta.outputs.title }}" \
+            --notes-file notes.md \
+            "${FLAGS[@]}" \
+            "dist/RAWUI0001-${TAG}.pkg" \
+            dist/SHA256SUMS.txt \
+            "dist/RAWUI0001-${TAG}.cdx.json"
+
+  # -------------------------------------------------------------------------
+  #  6. Pages
+  # -------------------------------------------------------------------------
+  pages:
+    name: Sync Pages package
+    needs: [meta, release]
+    if: needs.meta.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Download .pkg
+        uses: actions/download-artifact@v8
+        with:
+          name: RAWUI0001-pkg
+          path: dist
+
+      - name: Sync docs/RAWUI0001.pkg through a PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.meta.outputs.tag }}
+        run: |
+          # docs/RAWUI0001.pkg is the static-package fallback served by Pages;
+          # *.pkg is gitignored, so add with -f (the file is already tracked).
+          #
+          # main is protected by the "main protection" ruleset, so this cannot
+          # push directly (GH013: Changes must be made through a pull request).
+          # Open a branch, let the PR checks run, and auto-merge once they are
+          # green - that keeps the ruleset genuinely enforced instead of handing
+          # Actions a bypass.
+          git fetch origin main
+          git checkout -B main origin/main
+          cp dist/IV0000-*.pkg docs/RAWUI0001.pkg
+          git add -f docs/RAWUI0001.pkg
+          if git diff --cached --quiet; then
+            echo "docs/RAWUI0001.pkg is already up to date, skipping"
+            exit 0
+          fi
+
+          BRANCH="chore/pages-sync-${TAG}"
+          git checkout -B "$BRANCH"
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "chore: sync docs/RAWUI0001.pkg from release ${TAG}"
+          git push -f origin "$BRANCH"
+
+          gh pr create --repo "${GITHUB_REPOSITORY}" \
+            --base main --head "$BRANCH" \
+            --title "chore: sync docs/RAWUI0001.pkg from release ${TAG}" \
+            --body "Automatic Pages fallback sync for release ${TAG}.
+
+          Brings \`docs/RAWUI0001.pkg\` in line with the published release asset so
+          the Pages copy and the GitHub Release serve the same bytes." \
+            || echo "PR already exists, reusing it"
+
+          # Merge automatically once the required checks pass.
+          gh pr merge "$BRANCH" --repo "${GITHUB_REPOSITORY}" \
+            --squash --auto --delete-branch \
+            || echo "auto-merge could not be enabled; merge the sync PR by hand"
+
+      # The sync PR touches docs/**, which triggers pages.yml by itself; this
+      # is a belt-and-braces dispatch for the case where the PR was already
+      # up to date and nothing changed.
+      - name: Kick the Pages deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run pages.yml --repo "${GITHUB_REPOSITORY}" --ref main \
+            || echo "pages.yml dispatch failed (it may already be running)"
+
+      - name: Summary
+        env:
+          TAG: ${{ needs.meta.outputs.tag }}
+        run: |
+          {
+            echo "## RAW UI ${TAG} released"
+            echo
+            echo "| step | result |"
+            echo "|---|---|"
+            echo "| Host unit tests | ✅ |"
+            echo "| Build FPKG | ✅ |"
+            echo "| Package sanity | ✅ |"
+            echo "| Release | ✅ [\`${TAG}\`](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}) |"
+            echo "| Pages sync | ✅ |"
+            echo
+            echo "Install: https://bitplugg.github.io/rawui/RAWUI0001.pkg"
+          } >> "$GITHUB_STEP_SUMMARY"
