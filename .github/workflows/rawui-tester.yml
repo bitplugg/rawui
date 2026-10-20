@@ -45,7 +45,7 @@ jobs:
 
       - name: Cache OpenOrbis toolchain
         id: cache-tc
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/oo/OpenOrbis
           key: oo-${{ env.OO_VERSION }}-${{ env.OO_ASSET }}
