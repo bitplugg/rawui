@@ -5,3 +5,10 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # Dependabot's default title ("Bump actions/checkout from 4 to 5") has no
+    # Conventional Commit prefix, so the "Conventional title" check rejects it
+    # and the PR can never satisfy the ruleset.  Ask for the chore(deps) form
+    # instead - that is also what the release changelog groups under "Chore".
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
