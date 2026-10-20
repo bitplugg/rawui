@@ -13,8 +13,11 @@ on:
     types: [opened, edited, reopened, synchronize]
   workflow_dispatch:
 
+# `contents: read` is the repo default, but creating (and later updating) a
+# draft release needs write - without it the action dies at the API call with
+# "Resource not accessible by integration".
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:

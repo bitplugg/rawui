@@ -2,6 +2,11 @@
 #
 # The published release notes come from release.yml; this file only shapes the
 # *draft* that accumulates while PRs land on main.
+#
+# The `categories[*]` / `version-resolver` label fields this file used to rely on
+# are deprecated in release-drafter v7 and warn loudly on every run, so both are
+# expressed the current way: a category's `when` condition for the changelog, and
+# dedicated `type: version-resolver` categories for the semver bump.
 
 name-template: 'RAW UI $RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
@@ -9,29 +14,42 @@ change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
 change-title-escapes: '\<*_&'
 
 categories:
+  # `type: version-resolver` categories only select the semver bump; they print
+  # nothing themselves.  The first match wins, so the biggest bump is listed
+  # first and the fallback (patch) is implicit when nothing matches.
+  - type: 'version-resolver'
+    title: 'Major bump'
+    semver-increment: 'major'
+    when:
+      labels: ['major']
+  - type: 'version-resolver'
+    title: 'Minor bump'
+    semver-increment: 'minor'
+    when:
+      labels: ['minor', 'feature', 'enhancement', 'performance']
+  - type: 'version-resolver'
+    title: 'Patch bump'
+    semver-increment: 'patch'
+    when:
+      labels: ['patch', 'fix', 'bugfix', 'bug', 'chore', 'ci', 'build',
+               'documentation', 'docs', 'dependencies']
+
   - title: '✨ Features'
-    labels: ['feature', 'enhancement']
+    when:
+      labels: ['feature', 'enhancement']
   - title: '🐛 Fixes'
-    labels: ['fix', 'bugfix', 'bug']
+    when:
+      labels: ['fix', 'bugfix', 'bug']
   - title: '⚡ Performance'
-    labels: ['performance']
+    when:
+      labels: ['performance']
   - title: '📝 Documentation'
-    labels: ['documentation', 'docs']
+    when:
+      labels: ['documentation', 'docs']
   - title: '🔧 Maintenance'
-    labels: ['chore', 'ci', 'build', 'dependencies']
+    when:
+      labels: ['chore', 'ci', 'build', 'dependencies']
 
-version-resolver:
-  major:
-    labels: ['major']
-  minor:
-    labels: ['minor', 'feature', 'enhancement', 'performance']
-  patch:
-    labels: ['patch', 'fix', 'bugfix', 'bug', 'chore', 'ci', 'build',
-             'documentation', 'docs', 'dependencies']
-  default: patch
-
-exclude-labels:
-  - 'skip-changelog'
 exclude-title:
   - 'WIP'
   - 'wip'
