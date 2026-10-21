@@ -17,11 +17,17 @@ categories:
   # `type: version-resolver` categories only select the semver bump; they print
   # nothing themselves.  The first match wins, so the biggest bump is listed
   # first and the fallback (patch) is implicit when nothing matches.
+  #
+  # There is deliberately no `major` rule.  Dependabot puts a `major` label on
+  # every semver-major bump of a dependency, and `actions/upload-pages-artifact`
+  # 3 -> 5 is one, which made release-drafter resolve the *app* version to
+  # v1.0.0 for a workflow-action update.  A dependency bump is never a major
+  # bump of RAW UI; the `dependencies` rule below pins those to patch.
   - type: 'version-resolver'
-    title: 'Major bump'
-    semver-increment: 'major'
+    title: 'Dependency bump'
+    semver-increment: 'patch'
     when:
-      labels: ['major']
+      labels: ['dependencies']
   - type: 'version-resolver'
     title: 'Minor bump'
     semver-increment: 'minor'
