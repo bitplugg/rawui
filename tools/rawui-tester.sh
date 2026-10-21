@@ -216,69 +216,57 @@ else
 fi
 
 # ===========================================================================
-section "3. Pages fallback package"
+section "3. Pages install link"
 # ===========================================================================
 
-# docs/RAWUI0001.pkg is what bitplugg.github.io/rawui/RAWUI0001.pkg serves, so
-# it has to be a *legitimate* RAW UI package: right magic, right content_id.
-#
-# Byte-equality with dist/ is only guaranteed right after a release, because
-# release.yml is what copies the artefact over.  Outside a release run (a PR, a
-# plain push) dist/ is a fresh local build of an unmerged commit, so demanding
-# equality would make this check permanently red.  On a release run (a v* tag
-# in GITHUB_REF, or --base naming one) the bytes must match.
-if [ ! -f docs/RAWUI0001.pkg ]; then
-    bad "docs/RAWUI0001.pkg is missing; Pages cannot serve the fallback install"
-    gh_error docs/RAWUI0001.pkg 1 "Pages fallback package missing"
+# The site no longer commits docs/RAWUI0001.pkg.  pages.yml stages the site and
+# downloads the newest release asset into _site/RAWUI0001.pkg at deploy time, so
+# what has to hold is the *wiring*: the deploy must fetch a .pkg, name it
+# RAWUI0001.pkg, and the page must link to that name.  Checking the wiring is
+# what catches a rename on either side; the bytes themselves are guaranteed by
+# the release asset being downloaded directly.
+PAGES_YML=".github/workflows/pages.yml"
+INDEX_HTML="docs/index.html"
+
+if [ ! -f "$PAGES_YML" ]; then
+    bad "${PAGES_YML} is missing; nothing publishes the install package"
+    gh_error "$PAGES_YML" 1 "pages workflow missing"
 else
-    PAGES_PKG="docs/RAWUI0001.pkg"
-    PAGES_MAGIC="$(head -c 4 "$PAGES_PKG" | od -An -tx1 | tr -d ' \n')"
-    PAGES_SIZE="$(stat -c%s "$PAGES_PKG")"
-
-    if [ "$PAGES_MAGIC" = "7f434e54" ]; then
-        ok "docs/RAWUI0001.pkg is a PS4 package ($(numfmt --to=iec "$PAGES_SIZE" 2>/dev/null || echo "${PAGES_SIZE} bytes"))"
+    if grep -q 'RAWUI0001\.pkg' "$PAGES_YML"; then
+        ok "pages.yml names the served package RAWUI0001.pkg"
     else
-        bad "docs/RAWUI0001.pkg has bad magic '$PAGES_MAGIC'"
-        gh_error "$PAGES_PKG" 1 "Pages fallback is not a PS4 package (magic $PAGES_MAGIC)"
+        bad "pages.yml does not name RAWUI0001.pkg; the install link would 404"
+        gh_error "$PAGES_YML" 1 "pages.yml no longer publishes RAWUI0001.pkg"
     fi
 
-    # The content_id lives in plain text inside the .pkg header, which is
-    # enough to prove the served file is *this* app (not, say, a stray build of
-    # something else) without needing a PFS parser.
-    if grep -aq "$CONTENT_ID" "$PAGES_PKG"; then
-        ok "docs/RAWUI0001.pkg carries content_id ${CONTENT_ID}"
+    if grep -q 'gh release download' "$PAGES_YML"; then
+        ok "pages.yml takes the package from the latest release"
     else
-        bad "docs/RAWUI0001.pkg does not carry content_id ${CONTENT_ID}"
-        gh_error "$PAGES_PKG" 1 "Pages fallback content_id mismatch (CE-32957-6)"
+        bad "pages.yml does not download a release asset"
+        gh_error "$PAGES_YML" 1 "pages.yml does not fetch the released package"
     fi
+fi
 
-    # Byte-equality is only meaningful when we are comparing like with like.
-    RELEASE_CTX=0
-    case "${GITHUB_REF:-}" in
-        refs/tags/v*) RELEASE_CTX=1 ;;
-    esac
-    case "${BASE_REF:-}" in
-        v[0-9]*) RELEASE_CTX=1 ;;
-    esac
-
-    if [ "$SKIP_PKG" -eq 1 ]; then
-        note "byte comparison skipped (--skip-pkg)"
-    elif [ -z "$PKG_PATH" ] || [ ! -f "$PKG_PATH" ]; then
-        note "byte comparison skipped (no built .pkg in dist/)"
-    elif [ "$RELEASE_CTX" -eq 1 ]; then
-        BUILT_SHA="$(sha256sum "$PKG_PATH" | cut -d' ' -f1)"
-        PAGES_SHA="$(sha256sum "$PAGES_PKG" | cut -d' ' -f1)"
-        if [ "$BUILT_SHA" = "$PAGES_SHA" ]; then
-            ok "docs/RAWUI0001.pkg matches the release artefact (${BUILT_SHA:0:12}...)"
-        else
-            bad "docs/RAWUI0001.pkg differs from the release artefact"
-            note "release: ${BUILT_SHA:0:16}..."
-            note "pages:   ${PAGES_SHA:0:16}..."
-            gh_error "$PAGES_PKG" 1 "Pages fallback is stale relative to the release artefact"
-        fi
+if [ ! -f "$INDEX_HTML" ]; then
+    bad "${INDEX_HTML} is missing"
+    gh_error "$INDEX_HTML" 1 "index.html missing"
+else
+    # The download button has to point at the name pages.yml publishes.
+    if grep -qE 'href="RAWUI0001\.pkg"' "$INDEX_HTML"; then
+        ok "docs/index.html links to RAWUI0001.pkg"
     else
-        note "byte comparison skipped (not a release run; pages syncs on release)"
+        bad "docs/index.html has no link to RAWUI0001.pkg"
+        gh_error "$INDEX_HTML" 1 "index.html does not link to RAWUI0001.pkg"
     fi
+fi
+
+# A committed package here is now a bug: it would shadow the release asset if
+# the download ever failed, serving a stale build from a different version.
+if git ls-files --error-unmatch docs/RAWUI0001.pkg >/dev/null 2>&1; then
+    bad "docs/RAWUI0001.pkg is committed again; Pages should serve the release asset"
+    gh_error docs/RAWUI0001.pkg 1 "committed Pages package shadows the release asset"
+else
+    ok "docs/RAWUI0001.pkg is not committed (Pages serves the release asset)"
 fi
 
 # ===========================================================================

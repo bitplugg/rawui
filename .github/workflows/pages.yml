@@ -1,10 +1,28 @@
 name: pages
 
+# Publishes the site in docs/ plus the newest released .pkg.
+#
+# The package is fetched from the latest GitHub Release at deploy time instead
+# of being committed to docs/RAWUI0001.pkg.  Committing it needed a bot push
+# into main, which the "main protection" ruleset forbids (and Actions cannot be
+# granted a bypass on a repository ruleset), so the sync used to open a PR that
+# could never get its checks approved.  Downloading at deploy time removes the
+# loop entirely: no bot commit, no PR, and the published package is by
+# definition the released one.
+#
+# The stable URL https://bitplugg.github.io/rawui/RAWUI0001.pkg keeps working.
+
 on:
   push:
     branches: [main, master]
-    paths: [docs/**]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  # Fired explicitly by build-test-release.yml after a release is published,
+  # so the site picks up the new package even though docs/ did not change.
   workflow_dispatch:
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -17,7 +35,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy docs/ to Pages
+    name: Deploy site + latest package
     runs-on: ubuntu-24.04
     environment:
       name: github-pages
@@ -31,10 +49,51 @@ jobs:
         with:
           enablement: true
 
-      - name: Upload docs/
+      # Assemble the site in a scratch directory so docs/ itself is never
+      # mutated (and nothing needs to be committed back).
+      - name: Stage site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          mkdir -p _site
+          cp -a docs/. _site/
+
+          # The legacy committed copy is ignored; the release asset is the
+          # source of truth.  Remove it so a stale file cannot be served if the
+          # download below fails.
+          rm -f _site/RAWUI0001.pkg
+
+          echo "fetching the newest package asset..."
+          ASSET="$(gh release view --repo "${GITHUB_REPOSITORY}" \
+                     --json assets \
+                     --jq '[.assets[] | select(.name | endswith(".pkg"))] | first | .name' \
+                   2>/dev/null || true)"
+
+          if [ -z "$ASSET" ] || [ "$ASSET" = "null" ]; then
+            # No release yet: fall back to the committed copy if one exists.
+            if [ -f docs/RAWUI0001.pkg ]; then
+              echo "::warning::no release asset found; serving the committed docs/RAWUI0001.pkg"
+              cp docs/RAWUI0001.pkg _site/RAWUI0001.pkg
+            else
+              echo "::warning::no release asset and no committed package; the install link will 404 until the first release"
+            fi
+          else
+            echo "downloading ${ASSET}"
+            gh release download --repo "${GITHUB_REPOSITORY}" \
+              --pattern "$ASSET" --dir _site --clobber
+            mv "_site/${ASSET}" _site/RAWUI0001.pkg
+            ls -lh _site/RAWUI0001.pkg
+            sha256sum _site/RAWUI0001.pkg
+          fi
+
+          echo "site contents:"
+          find _site -maxdepth 1 -type f | sort
+
+      - name: Upload site
         uses: actions/upload-pages-artifact@v5
         with:
-          path: docs
+          path: _site
 
       - name: Deploy
         id: deployment
