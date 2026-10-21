@@ -471,18 +471,6 @@ jobs:
           TAG: ${{ needs.meta.outputs.tag }}
           PRERELEASE: ${{ needs.meta.outputs.prerelease }}
         run: |
-          # release-drafter keeps a draft release carrying the tag we are about
-          # to publish; leaving it behind would make `gh release create` fail
-          # with "tag_name already_exists".  Retire it first.
-          gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-            --paginate \
-            --jq ".[] | select(.draft == true and .tag_name == \"${TAG}\") | .id" |
-          while read -r id; do
-            [ -n "$id" ] || continue
-            echo "removing stale draft release ${id}"
-            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/${id}"
-          done
-
           # gh release create makes the tag itself if it doesn't exist yet.
           # Prerelease tags (v1.2.3-rc1) are flagged so they don't show up as
           # the "latest" release on the repo page.

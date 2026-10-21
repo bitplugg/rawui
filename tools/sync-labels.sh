@@ -2,9 +2,9 @@
 # ---------------------------------------------------------------------------
 #  RAW UI - sync repository labels.
 #
-#  Labels are needed by the bots (.github/labeler.yml, release-drafter and the
-#  stale workflow) but GitHub has no declarative label store, so this script is
-#  the source of truth.  Running it twice is a no-op.
+#  Labels are needed by the bots (.github/labeler.yml and the stale workflow)
+#  but GitHub has no declarative label store, so this script is the source of
+#  truth.  Running it twice is a no-op.
 #
 #  Usage:  tools/sync-labels.sh [owner/repo]     # defaults to the current repo
 # ---------------------------------------------------------------------------
