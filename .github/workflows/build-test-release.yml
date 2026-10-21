@@ -7,13 +7,20 @@ name: build-test-release
 #      build   -> compile the FPKG with the release version baked into param.sfo
 #      sanity  -> rawui-tester: is this the *right* package, not just a package
 #      release -> publish a GitHub Release (pkg + SBOM + checksums + changelog)
-#      pages   -> sync docs/RAWUI0001.pkg and redeploy the site
 #
 #  Triggers:
-#    * push to main      -> tests, build, sanity, then an automatic release
-#                           (patch auto-increment: 0.0.4 -> 0.0.5, rolling at .9)
-#    * pull request      -> tests, build, sanity only (no release)
-#    * workflow_dispatch -> everything; `version` overrides the auto-increment
+#    * pull request      -> tests, build, sanity.  Never releases.
+#    * push to main      -> the same, so main stays verified.  Never releases:
+#                           main only ever receives CI, docs and dependency
+#                           commits, and auto-releasing them produced a stream
+#                           of empty versions (0.0.5/0.0.6/0.0.7 in ten minutes)
+#                           plus a Pages-sync PR for each one.
+#    * push of a v* tag  -> release that exact version.
+#    * workflow_dispatch -> a release on demand; `version` pins it and the
+#                           `release` checkbox allows a build-only dry run.
+#
+#  The Pages site is not touched here.  pages.yml publishes the newest released
+#  package itself, so nothing has to be committed back into docs/.
 #
 #  Every job is a separate required status check in the "main protection"
 #  ruleset, so a red test blocks the merge.
@@ -22,6 +29,7 @@ name: build-test-release
 on:
   push:
     branches: [main, master]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
     inputs:
@@ -107,11 +115,13 @@ jobs:
           fi
 
           # ---- should we publish ---------------------------------------------
-          # Never on a pull request (that would tag every branch), never when a
-          # manual run explicitly asked for a dry run.
+          # Only when asked explicitly: a v* tag push, or a manual run that did
+          # not untick the release box.  A branch push never publishes - main
+          # receives CI/docs/dependency commits, and releasing those produced
+          # empty versions plus a Pages-sync PR each time.
           PUBLISH=false
           case "$EVENT" in
-            push)   [ "${GITHUB_REF_NAME}" = "main" ] && PUBLISH=true ;;
+            push)              [ "${GITHUB_REF_TYPE:-}" = "tag" ] && PUBLISH=true ;;
             workflow_dispatch) [ "$IN_RELEASE" != "false" ] && PUBLISH=true ;;
           esac
           echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
@@ -319,7 +329,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-      pull-requests: write   # the Pages sync step opens and auto-merges a PR
+      actions: write         # dispatch pages.yml after publishing the release
       id-token: write
       attestations: write
     outputs:
@@ -488,98 +498,40 @@ jobs:
             dist/SHA256SUMS.txt \
             "dist/RAWUI0001-${TAG}.cdx.json"
 
-  # -------------------------------------------------------------------------
-  #  6. Pages
-  # -------------------------------------------------------------------------
-  pages:
-    name: Sync Pages package
-    needs: [meta, release]
-    if: needs.meta.outputs.publish == 'true'
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-      pull-requests: write
-      actions: write   # kick pages.yml explicitly if the docs/ push did not
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          persist-credentials: true
-
-      - name: Download .pkg
-        uses: actions/download-artifact@v8
-        with:
-          name: RAWUI0001-pkg
-          path: dist
-
-      - name: Sync docs/RAWUI0001.pkg through a PR
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.meta.outputs.tag }}
-        run: |
-          # docs/RAWUI0001.pkg is the static-package fallback served by Pages;
-          # *.pkg is gitignored, so add with -f (the file is already tracked).
-          #
-          # main is protected by the "main protection" ruleset, so this cannot
-          # push directly (GH013: Changes must be made through a pull request).
-          # Open a branch, let the PR checks run, and auto-merge once they are
-          # green - that keeps the ruleset genuinely enforced instead of handing
-          # Actions a bypass.
-          git fetch origin main
-          git checkout -B main origin/main
-          cp dist/IV0000-*.pkg docs/RAWUI0001.pkg
-          git add -f docs/RAWUI0001.pkg
-          if git diff --cached --quiet; then
-            echo "docs/RAWUI0001.pkg is already up to date, skipping"
-            exit 0
-          fi
-
-          BRANCH="chore/pages-sync-${TAG}"
-          git checkout -B "$BRANCH"
-          git -c user.name="github-actions[bot]" \
-              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-              commit -m "chore: sync docs/RAWUI0001.pkg from release ${TAG}"
-          git push -f origin "$BRANCH"
-
-          gh pr create --repo "${GITHUB_REPOSITORY}" \
-            --base main --head "$BRANCH" \
-            --title "chore: sync docs/RAWUI0001.pkg from release ${TAG}" \
-            --body "Automatic Pages fallback sync for release ${TAG}.
-
-          Brings \`docs/RAWUI0001.pkg\` in line with the published release asset so
-          the Pages copy and the GitHub Release serve the same bytes." \
-            || echo "PR already exists, reusing it"
-
-          # Merge automatically once the required checks pass.
-          gh pr merge "$BRANCH" --repo "${GITHUB_REPOSITORY}" \
-            --squash --auto --delete-branch \
-            || echo "auto-merge could not be enabled; merge the sync PR by hand"
-
-      # The sync PR touches docs/**, which triggers pages.yml by itself; this
-      # is a belt-and-braces dispatch for the case where the PR was already
-      # up to date and nothing changed.
-      - name: Kick the Pages deploy
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
+          # Republish the Pages site so it picks up the new package.  The
+          # release event cannot do this: a release created with GITHUB_TOKEN
+          # does not start another workflow run (GitHub's recursion guard), so
+          # pages.yml's `release: published` trigger would never fire.  An
+          # explicit dispatch is the supported way to chain them.
+          echo "dispatching pages.yml"
           gh workflow run pages.yml --repo "${GITHUB_REPOSITORY}" --ref main \
-            || echo "pages.yml dispatch failed (it may already be running)"
+            || echo "::warning::could not dispatch pages.yml; redeploy it manually"
 
-      - name: Summary
+  # -------------------------------------------------------------------------
+  #  6. Summary
+  # -------------------------------------------------------------------------
+  summary:
+    name: Release summary
+    needs: [meta, tests, build, sanity, release]
+    if: always() && needs.meta.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Write job summary
         env:
           TAG: ${{ needs.meta.outputs.tag }}
         run: |
           {
-            echo "## RAW UI ${TAG} released"
+            echo "## RAW UI ${TAG}"
             echo
             echo "| step | result |"
             echo "|---|---|"
-            echo "| Host unit tests | ✅ |"
-            echo "| Build FPKG | ✅ |"
-            echo "| Package sanity | ✅ |"
-            echo "| Release | ✅ [\`${TAG}\`](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}) |"
-            echo "| Pages sync | ✅ |"
+            echo "| Host unit tests | ${{ needs.tests.result }} |"
+            echo "| Build FPKG | ${{ needs.build.result }} |"
+            echo "| Package sanity | ${{ needs.sanity.result }} |"
+            echo "| Release | ${{ needs.release.result }} |"
+            echo
+            echo "The Pages site and the install .pkg are published by the \`pages\`"
+            echo "workflow, which triggers on the new release."
             echo
             echo "Install: https://bitplugg.github.io/rawui/RAWUI0001.pkg"
           } >> "$GITHUB_STEP_SUMMARY"
